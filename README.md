@@ -42,7 +42,7 @@ Most first-run PCBs get respun for the same handful of mistakes: missing I2C pul
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph Web["apps/web (Next.js)"]
     UI["Board, Harness, Memory, System pages"]
     API["API routes"]
