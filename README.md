@@ -6,7 +6,7 @@ Kaizen turns a sentence like *"USB-C powered temperature sensor with a status LE
 
 ![Landing page](docs/screenshots/landing.png)
 
-**Demo video:** _link added on submission_ · Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 02 (Agent Memory and Coordination).
+**Demo video:** _link added on submission_ · **Blog:** [We let a graph decide what our AI agents remember](https://tanmaysahu3.medium.com/we-let-a-graph-decide-what-our-ai-agents-remember-1b7dd92b29a0) · Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 02 (Agent Memory and Coordination).
 
 **FalkorDB is the only database.** It holds the agents' memory (episodic, semantic, procedural), their shared work queue, the request inbox, user accounts and one private graph per user. Take FalkorDB away and the agents have nothing to read, nothing to claim and nothing to remember.
 
@@ -241,6 +241,49 @@ With no keys at all you can still run the stand-in 20-part board through the que
 ```bash
 npm run finale -- --stub --reset              # free: planner + coder stand-ins, real checks, real queue
 npm run green                                 # one real call per configured service
+```
+
+## Deploy it
+
+A deployment has three parts, and all of them talk only to FalkorDB:
+
+| Part | Where | Why there |
+|---|---|---|
+| FalkorDB | [FalkorDB Cloud](https://app.falkordb.cloud) or the `falkordb/falkordb` Docker image | the only database: memory, queue, requests, wake-ups |
+| Web app (`apps/web`) | Vercel | plain Next.js; every API route reads FalkorDB |
+| Worker (`npm run worker`) | any always-on Node host: Railway, Render, Fly.io, a VM | runs the agents; builds take minutes, so it can't be a serverless function |
+
+The web app never calls a model. It writes a `Request` node and publishes on a FalkorDB channel. The worker picks the request up, runs the agents and writes everything back to the graph, and the web app reads it from there. If the host blocks pub/sub, the worker falls back to polling every 10 seconds.
+
+**1. FalkorDB.** Create a free instance on FalkorDB Cloud and copy its connection details into one URL: `redis://default:<password>@<host>:<port>`. To self-host instead, run `falkordb/falkordb` with port 6379 and a persistent volume on `/data`. Then create the indexes, config, specs and agent nodes once, from your machine:
+
+```bash
+FALKORDB_URL='redis://default:<password>@<host>:<port>' npm run setup
+```
+
+**2. Web app on Vercel.** Import the GitHub repo, then set:
+
+- Root Directory: `apps/web` (keep "Include files outside the root directory" on, since the app imports `packages/graph`).
+- Framework: Next.js. Node.js version: 22.x.
+- Install Command: `cd ../.. && npm install`. This installs the workspaces and builds `packages/graph` and `packages/types`.
+- Build Command: `next build` (the default).
+- Environment variables: `FALKORDB_URL` and `FALKORDB_GRAPH=kaizen`. For sign-in, also add `AUTH_SECRET`, `AUTH_URL=https://<your-domain>`, and either `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` (redirect URI `https://<your-domain>/api/auth/callback/google`) or `AUTH_RESEND_KEY` and `EMAIL_FROM`. Leave the auth variables out to run in anonymous mode.
+
+Deploy, then open `https://<your-domain>/api/health`. It should report FalkorDB as connected, with the counts written by `npm run setup`.
+
+**3. Worker.** On Railway or Render, create a service from the same repo (Render: a Background Worker) with:
+
+- Build command: `npm install`
+- Start command: `npm run worker`
+- Node 22.13 or newer
+- Environment variables: the same `FALKORDB_URL` and `FALKORDB_GRAPH`, plus `AI_API_KEY`, `AI_BASE_URL`, `MODEL_CHEAP` and `MODEL_STRONG`. `EMBED_MODEL` or `VOYAGE_API_KEY` is optional (see [API keys](#api-keys)). `WORKER_CONCURRENCY` defaults to 3.
+
+On a VM, the same thing is `git clone`, `npm install`, a `.env` file, and `npm run worker` under systemd or `pm2`. Its log should print `waiting for spec requests`. Restarts are safe: an interrupted request resumes where it stopped.
+
+**Check it end to end.** On the deployed site, open `/graph`, type a board and press "Build and watch". The worker log should show the request within a few seconds. The page then shows the lessons the graph picked, each attempt, and the hidden-check results as they land. The same records are in your FalkorDB instance:
+
+```bash
+redis-cli -u "$FALKORDB_URL" GRAPH.QUERY kaizen "MATCH (q:Request) RETURN q.status, count(q)"
 ```
 
 ## API keys
