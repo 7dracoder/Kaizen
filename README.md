@@ -6,7 +6,7 @@ Kaizen turns a sentence like *"USB-C powered temperature sensor with a status LE
 
 ![Landing page](docs/screenshots/landing.png)
 
-**Demo video:** _link added on submission_ · **Blog:** [We let a graph decide what our AI agents remember](https://tanmaysahu3.medium.com/we-let-a-graph-decide-what-our-ai-agents-remember-1b7dd92b29a0) · Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 02 (Agent Memory and Coordination).
+**Demo video:** [youtu.be/AILjiXgkjzo](https://youtu.be/AILjiXgkjzo) · **Blog:** [We let a graph decide what our AI agents remember](https://tanmaysahu3.medium.com/we-let-a-graph-decide-what-our-ai-agents-remember-1b7dd92b29a0) · Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 02 (Agent Memory and Coordination).
 
 **FalkorDB is the only database.** It holds the agents' memory (episodic, semantic, procedural), their shared work queue, the request inbox, user accounts and one private graph per user. Take FalkorDB away and the agents have nothing to read, nothing to claim and nothing to remember.
 
