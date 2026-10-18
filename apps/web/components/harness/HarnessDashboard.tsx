@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 
 import {
@@ -15,6 +15,7 @@ import type {
   RunDoc,
   SubcircuitDoc,
 } from "@/lib/live";
+import { setCurrentBoard, useCurrentBoard } from "@/lib/currentBoard";
 import { getJson, usePolling } from "@/lib/usePolling";
 
 import { CurrentExecution } from "./CurrentExecution";
@@ -81,7 +82,10 @@ export function HarnessDashboard({
   // could easily be someone else's once more than one person is using this at once.
   const [boardId, setBoardId] = useState<string | null>(sessionBoardId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const load = useCallback(() => loadAll(boardId), [boardId]);
+  // Then the board the other tabs were showing.
+  const shared = useCurrentBoard();
+  const scoped = boardId ?? shared;
+  const load = useCallback(() => loadAll(scoped), [scoped]);
   const { data, error, paused, togglePause } = usePolling(load, POLL_MS);
 
   // Memoised so the `?? []` fallback does not produce a new array identity on
@@ -92,7 +96,11 @@ export function HarnessDashboard({
   const boards = useMemo(() => data?.boardIds ?? [], [data]);
 
   // Falls back to the most recently created board only when nobody asked for a specific one.
-  const activeBoard = boardId ?? data?.designedBoard ?? boards[0] ?? null;
+  const activeBoard = scoped ?? data?.designedBoard ?? boards[0] ?? null;
+
+  useEffect(() => {
+    setCurrentBoard(activeBoard);
+  }, [activeBoard]);
 
   const boardRuns = useMemo(
     () => runs.filter((r) => r.board_id === activeBoard),
@@ -156,7 +164,7 @@ export function HarnessDashboard({
                 }}
                 className="border-b border-hair bg-transparent py-0.5 font-mono text-[11px] text-dim focus:border-accent focus:outline-none"
               >
-                {boards.map((b) => (
+                {(activeBoard && !boards.includes(activeBoard) ? [activeBoard, ...boards] : boards).map((b) => (
                   <option key={b} value={b} className="bg-void">
                     {b.slice(0, 10)}
                   </option>

@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { PCBViewport } from "@/components/pcb/PCBViewport";
 import { Telemetry } from "@/components/build/Telemetry";
 import { ComponentInspector } from "@/components/pcb/ComponentInspector";
+import { setCurrentBoard } from "@/lib/currentBoard";
 import { ago } from "@/lib/live";
 import { EMPTY_PCB, type PCBComponent, type PCBState } from "@/lib/types";
 
@@ -37,6 +38,10 @@ export function RealBoardView({ boardId }: { boardId: string }) {
   const [data, setData] = useState<BoardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<PCBComponent | null>(null);
+
+  useEffect(() => {
+    setCurrentBoard(boardId);
+  }, [boardId]);
 
   useEffect(() => {
     let cancelled = false;

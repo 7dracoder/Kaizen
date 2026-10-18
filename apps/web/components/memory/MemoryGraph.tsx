@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 import { ago, type BoardSummary } from "@/lib/live";
+import { setCurrentBoard, useCurrentBoard } from "@/lib/currentBoard";
 import { getJson, usePolling } from "@/lib/usePolling";
 
 interface Summary {
@@ -95,7 +96,7 @@ function TraceView({ trace }: { trace: Trace }) {
   );
 }
 
-export function MemoryGraph({ accountSlot }: { accountSlot?: ReactNode } = {}) {
+export function MemoryGraph({ accountSlot, initialBoard }: { accountSlot?: ReactNode; initialBoard?: string } = {}) {
   const { data: summary } = usePolling(() => getJson<Summary>("/api/graph"), POLL_MS);
   const { data: boards } = usePolling(() => getJson<{ boards?: BoardSummary[] }>("/api/boards"), POLL_MS);
   const { data: history } = usePolling(() => getJson<{ episodes?: Episode[]; anonymous?: boolean; error?: string }>("/api/history"), POLL_MS);
@@ -103,9 +104,14 @@ export function MemoryGraph({ accountSlot }: { accountSlot?: ReactNode } = {}) {
     const seen = new Set<string>();
     return (boards?.boards ?? []).filter((b) => (seen.has(b.board_id) ? false : (seen.add(b.board_id), true)));
   }, [boards]);
-  const [picked, setPicked] = useState<string | null>(null);
-  // Default to the newest build the agents actually designed; cache copies have an almost empty trace.
-  const selected = picked ?? (builds.find((b) => !b.cached_from) ?? builds[0])?.board_id ?? null;
+  const [picked, setPicked] = useState<string | null>(initialBoard ?? null);
+  const shared = useCurrentBoard();
+  // Then the board the other tabs were showing, then the newest build the agents actually designed (cache copies
+  // have an almost empty trace).
+  const selected = picked ?? shared ?? (builds.find((b) => !b.cached_from) ?? builds[0])?.board_id ?? null;
+  useEffect(() => {
+    setCurrentBoard(selected);
+  }, [selected]);
   const [trace, setTrace] = useState<Trace | null>(null);
 
   useEffect(() => {
@@ -149,6 +155,7 @@ export function MemoryGraph({ accountSlot }: { accountSlot?: ReactNode } = {}) {
               onChange={(e) => setPicked(e.target.value)}
               className="rounded-sm border border-line bg-raised px-2 py-1 font-mono text-[12px] text-ink"
             >
+              {selected && !builds.some((b) => b.board_id === selected) ? <option value={selected}>{selected}</option> : null}
               {builds.map((b) => (
                 <option key={b.board_id} value={b.board_id}>
                   {b.board_id} {b.spec_id ? `· ${b.spec_id}` : ""} {b.passed === true ? "· passed" : b.passed === false ? "· failed" : ""} {b.cached_from ? "· cached" : ""}

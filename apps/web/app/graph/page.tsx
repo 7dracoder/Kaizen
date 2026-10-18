@@ -6,6 +6,12 @@ export const metadata = { title: "Kaizen · graph" };
 export const dynamic = "force-dynamic";
 
 export default async function GraphPage({ searchParams }: PageProps<"/graph">) {
-  const { q } = await searchParams;
-  return <GraphExplorer accountSlot={<AccountWidget />} initialPrompt={typeof q === "string" ? q : undefined} />;
+  const { q, board } = await searchParams;
+  return (
+    <GraphExplorer
+      accountSlot={<AccountWidget />}
+      initialPrompt={typeof q === "string" ? q : undefined}
+      initialBoard={typeof board === "string" ? board : undefined}
+    />
+  );
 }

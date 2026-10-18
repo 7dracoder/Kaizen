@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Graph, MagnifyingGlass, Play } from "@phosphor-icons/react";
 
 import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
+import { setCurrentBoard, useCurrentBoard } from "@/lib/currentBoard";
 import { getJson, usePolling } from "@/lib/usePolling";
 import { LABEL_COLORS, type NetLink, type NetNode } from "./graphStyle";
 
@@ -87,9 +88,16 @@ function Cypher({ q }: { q: { purpose: string; cypher: string; rows: number; ms:
   );
 }
 
-export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: ReactNode; initialPrompt?: string } = {}) {
-  const [target, setTarget] = useState<string>(OVERVIEW);
-  const [follow, setFollow] = useState(true);
+export function GraphExplorer({
+  accountSlot,
+  initialPrompt,
+  initialBoard,
+}: { accountSlot?: ReactNode; initialPrompt?: string; initialBoard?: string } = {}) {
+  const [target, setTarget] = useState<string>(initialBoard ?? OVERVIEW);
+  // "shared": the board the other tabs were showing (or the newest build); "follow": always the newest build;
+  // "pick": the one chosen in View.
+  const [mode, setMode] = useState<"shared" | "follow" | "pick">(initialBoard ? "pick" : initialPrompt ? "follow" : "shared");
+  const shared = useCurrentBoard();
   const [selected, setSelected] = useState<string | null>(null);
   const [prompt, setPrompt] = useState(initialPrompt ?? "USB-C powered I2C temperature sensor breakout with a status LED");
   const [buildNote, setBuildNote] = useState<string | null>(null);
@@ -113,7 +121,7 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
       const r = await getJson<{ board_id?: string; status?: string; error?: string }>(`/api/spec/${pendingRequest}`);
       if (r?.board_id) {
         setTarget(r.board_id);
-        setFollow(false);
+        setMode("pick");
       }
       if (r?.status === "done" || r?.status === "failed") {
         setBuildNote(r.status === "done" ? "Build finished: the graph below is its final state." : `Build failed: ${r.error ?? "unknown error"}`);
@@ -123,8 +131,16 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
     return () => clearInterval(t);
   }, [pendingRequest]);
 
-  const current = follow && !pendingRequest && builds[0] ? builds[0] : target;
+  const current =
+    pendingRequest || mode === "pick"
+      ? target
+      : mode === "follow"
+        ? (builds[0] ?? target)
+        : (shared ?? builds[0] ?? target);
   const isOverview = current === OVERVIEW;
+  useEffect(() => {
+    if (!isOverview) setCurrentBoard(current);
+  }, [current, isOverview]);
 
   const fetchNetwork = useCallback(
     () => getJson<Network>(isOverview ? "/api/graph/network?limit=500" : `/api/graph/network?board_id=${encodeURIComponent(current)}`),
@@ -204,11 +220,11 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
         <label className="flex items-center gap-2 px-3 py-2 text-[12px] text-dim" style={panel}>
           View
           <select
-            value={follow && !pendingRequest ? "__follow__" : target}
+            value={mode === "follow" && !pendingRequest ? "__follow__" : current}
             onChange={(e) => {
-              if (e.target.value === "__follow__") setFollow(true);
+              if (e.target.value === "__follow__") setMode("follow");
               else {
-                setFollow(false);
+                setMode("pick");
                 setTarget(e.target.value);
               }
               setSelected(null);
@@ -217,7 +233,7 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
           >
             <option value="__follow__">Follow the latest build</option>
             <option value={OVERVIEW}>Whole memory</option>
-            {builds.map((b) => (
+            {(current !== OVERVIEW && !builds.includes(current) ? [current, ...builds] : builds).map((b) => (
               <option key={b} value={b}>{b}</option>
             ))}
           </select>

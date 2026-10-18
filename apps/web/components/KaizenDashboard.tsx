@@ -18,6 +18,7 @@ import { blockSpec, retrySpec, splitIntoBlocks, type CheckFailure } from "@/lib/
 import { buildSnapshotsFromBoard, type RealBoardPayload } from "@/lib/realRun";
 import { deriveMetrics } from "@/lib/metrics";
 import { diffPCBStates } from "@/lib/pcbDiff";
+import { setCurrentBoard } from "@/lib/currentBoard";
 import { getJson } from "@/lib/usePolling";
 import { EMPTY_PCB, type BuildSnapshot, type PCBComponent } from "@/lib/types";
 import type { RunDoc } from "@/lib/live";
@@ -252,6 +253,7 @@ export function KaizenDashboard({
       setBuildError(null);
       setSource({ label: `real build · ${boardId.slice(0, 8)}` });
       setRealBoardId(boardId);
+      setCurrentBoard(boardId);
       setFailView("blocks");
       setVerdict(
         payload.board.passed === true
