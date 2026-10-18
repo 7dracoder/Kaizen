@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
 
-import { NavTabs } from "@/components/NavTabs";
+import { AppHeader } from "@/components/AppHeader";
 import { AccountWidgetClient } from "@/components/AccountWidgetClient";
+import { authConfigured } from "@/lib/auth";
 
 const EXAMPLES = [
   "USB-C powered I2C temperature sensor with a status LED",
@@ -14,13 +15,7 @@ const EXAMPLES = [
 export default function Landing() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-line-soft bg-raised px-6">
-        <div className="flex items-center gap-5">
-          <span className="text-[15px] font-semibold text-ink">Kaizen</span>
-          <NavTabs />
-        </div>
-        <AccountWidgetClient />
-      </header>
+      <AppHeader>{authConfigured() ? <AccountWidgetClient /> : null}</AppHeader>
 
       <main className="dot-grid flex flex-1 flex-col items-center justify-center px-6 pb-24">
         <div className="w-full max-w-[560px]">

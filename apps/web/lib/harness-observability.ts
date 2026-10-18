@@ -67,6 +67,8 @@ export const STAGE_ACTOR_MAP: Record<string, Actor> = {
   compile: "coder",
   subcircuit: "coder",
   critique: "critic",
+  improve_critique: "critic",
+  improve: "coder",
   checks: "checker",
   final: "assembler",
   meta: "meta",
@@ -99,7 +101,9 @@ export const LOOP_STAGE_MAP: Record<string, LoopStage> = {
   compile: "compile",
   checks: "check",
   final: "check",
+  improve: "check",
   critique: "critique",
+  improve_critique: "critique",
   subcircuit: "save",
 };
 
@@ -144,6 +148,8 @@ export function deriveActorFromRun(run: RunWithFuture): {
 
 export function deriveRunStatus(run: RunDoc): ObservationStatus {
   if (run.stage === "error") return "failure";
+  // A critique is advice, not an attempt: it neither passes nor fails.
+  if (run.stage === "critique" || run.stage === "improve_critique") return "info";
   if (run.passed) return "success";
   // A compile record that did not pass is a failed attempt, not a neutral note.
   return "failure";
@@ -165,7 +171,11 @@ function summarizeRun(run: RunWithFuture, actor: Actor): string {
     case "final":
       return run.passed ? "Board assembled and passed" : "Assembled board failed checks";
     case "critique":
-      return "Critique pass";
+      return "Diagnosed the failures and proposed a fix";
+    case "improve_critique":
+      return "Suggested an improvement to a passing board";
+    case "improve":
+      return run.passed ? "Improved board passed every hidden check" : `Improved board failed ${plural(failures, "check")}`;
     case "meta":
       return "Harness evaluation";
     case "cache_hit":

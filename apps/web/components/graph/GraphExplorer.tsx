@@ -3,11 +3,10 @@
 // The live graph: watch the agents read and write FalkorDB while a board is built, and see exactly which graph
 // paths decided what the coder was given. Polls every 2 s; new nodes animate in, existing ones keep their place.
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowsClockwise, Graph, Lightning, MagnifyingGlass, Play } from "@phosphor-icons/react";
 
-import { NavTabs } from "@/components/NavTabs";
+import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 import { getJson, usePolling } from "@/lib/usePolling";
 import { LABEL_COLORS, type NetLink, type NetNode } from "./graphStyle";
 
@@ -92,8 +91,10 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
   // shows up here the moment the graph is consulted).
   const { data: feed } = usePolling(() => getJson<{ runs?: RunRow[] }>("/api/runs?limit=120"), POLL_MS);
   const builds = useMemo(() => {
+    // Cache copies never consulted the graph, so following one would show an empty decision panel.
+    const cached = new Set((feed?.runs ?? []).filter((r) => r.stage === "cache_hit").map((r) => r.board_id));
     const seen: string[] = [];
-    for (const r of feed?.runs ?? []) if (!seen.includes(r.board_id)) seen.push(r.board_id);
+    for (const r of feed?.runs ?? []) if (!seen.includes(r.board_id) && !cached.has(r.board_id)) seen.push(r.board_id);
     return seen.slice(0, 30);
   }, [feed]);
 
@@ -168,14 +169,9 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
   }, [initialPrompt]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col px-6">
-      <header className="flex h-14 shrink-0 items-center justify-between">
-        <div className="flex items-center gap-5">
-          <Link href="/" className="text-[15px] font-semibold tracking-[0.04em] text-ink hover:text-accent">Kaizen</Link>
-          <NavTabs active="graph" />
-        </div>
-        <div className="flex items-center gap-5 text-[12px]">{accountSlot}</div>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <AppHeader active="graph">{accountSlot}</AppHeader>
+      <div className={`${PAGE_COLUMN} pt-5`}>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex min-w-[320px] flex-1 items-center gap-2 px-3 py-2" style={panel}>
@@ -332,6 +328,8 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
                     </ul>
                   </div>
                 </div>
+              ) : !buildRuns ? (
+                <p className="text-[12px] text-faint">Reading this build&apos;s memory record from FalkorDB…</p>
               ) : isCacheHit ? (
                 <p className="text-[12px] text-faint">
                   Same wording as a board that already passed under this harness version, so the stored design was re-graded
@@ -355,6 +353,7 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
           </Panel>
         </aside>
       </main>
+      </div>
     </div>
   );
 }

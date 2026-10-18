@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { NavTabs } from "@/components/NavTabs";
+import { AppHeader } from "@/components/AppHeader";
 
 import { PCBViewport } from "@/components/pcb/PCBViewport";
 import { Telemetry } from "@/components/build/Telemetry";
@@ -78,23 +77,11 @@ export function RealBoardView({ boardId }: { boardId: string }) {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-void">
-      <header className="flex h-12 shrink-0 items-center justify-between px-6">
-        <div className="flex items-center gap-5">
-          <Link
-            href="/system"
-            className="text-[15px] font-medium tracking-[0.08em] text-ink hover:text-accent"
-          >
-            Kaizen
-          </Link>
-          <NavTabs active="board" />
-          <span className="text-[12px] text-faint">
-            {meta?.spec_id ?? boardId}
-          </span>
-        </div>
-        <div className="flex items-center gap-5 text-[12px]">
+      <AppHeader active="board">
+          <span className="truncate font-mono text-faint">{meta?.spec_id ?? boardId}</span>
           {meta?.harness_version !== undefined ? (
             <span className="text-faint">
-              Harness <span className="font-mono text-dim">{String(meta.harness_version).padStart(2, "0")}</span>
+              Harness <span className="font-mono text-dim">v{String(meta.harness_version)}</span>
             </span>
           ) : null}
           {meta ? (
@@ -110,8 +97,7 @@ export function RealBoardView({ boardId }: { boardId: string }) {
               </span>
             </span>
           ) : null}
-        </div>
-      </header>
+      </AppHeader>
 
       {/* Explicit min-height: a flex child can measure 0 before layout
           settles, and the canvas caches that first measurement. */}

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ThemeSwitcher } from "@/components/theme/ThemeSwitcher";
 
-type Tab = "board" | "harness" | "graph" | "memory" | "system";
+export type Tab = "board" | "harness" | "graph" | "memory" | "system";
 
 const TABS: { id: Tab; label: string; href: string }[] = [
   { id: "board", label: "Board", href: "/board" },

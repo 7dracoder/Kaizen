@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { NavTabs } from "@/components/NavTabs";
+import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 
 import {
   boardTotals,
@@ -38,6 +37,8 @@ interface Snapshot {
   subcircuits: SubcircuitDoc[];
   /** Every board's id, most recently created first — from /api/boards, independent of which board's runs we scoped below. */
   boardIds: string[];
+  /** Newest board the agents designed themselves (cache copies have a single run and an empty design loop). */
+  designedBoard: string | null;
   connected: boolean;
 }
 
@@ -55,7 +56,7 @@ async function loadAll(boardId: string | null): Promise<Snapshot> {
     getJson<{ versions?: HarnessDoc[] }>("/api/harness"),
     getJson<{ lessons?: LessonDoc[]; subcircuits?: SubcircuitDoc[] }>("/api/memory"),
     getJson<{ items?: QueueItemDoc[] }>(`/api/queue${boardId ? `?${scope}` : ""}`),
-    getJson<{ boards?: { board_id: string }[] }>("/api/boards"),
+    getJson<{ boards?: { board_id: string; cached_from?: string }[] }>("/api/boards"),
   ]);
 
   return {
@@ -66,6 +67,7 @@ async function loadAll(boardId: string | null): Promise<Snapshot> {
     subcircuits: memory?.subcircuits ?? [],
     // /api/boards lists board documents (one per attempt, subcircuit and assembly), so the same id repeats.
     boardIds: [...new Set((boards?.boards ?? []).map((b) => b.board_id))],
+    designedBoard: (boards?.boards ?? []).find((b) => !b.cached_from)?.board_id ?? null,
     connected: health?.connected === true,
   };
 }
@@ -90,7 +92,7 @@ export function HarnessDashboard({
   const boards = useMemo(() => data?.boardIds ?? [], [data]);
 
   // Falls back to the most recently created board only when nobody asked for a specific one.
-  const activeBoard = boardId ?? boards[0] ?? null;
+  const activeBoard = boardId ?? data?.designedBoard ?? boards[0] ?? null;
 
   const boardRuns = useMemo(
     () => runs.filter((r) => r.board_id === activeBoard),
@@ -141,19 +143,8 @@ export function HarnessDashboard({
   const connected = data?.connected === true;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6">
-      <header className="flex h-12 shrink-0 items-center justify-between">
-        <div className="flex items-center gap-5">
-          <Link
-            href="/"
-            className="text-[15px] font-medium tracking-[0.08em] text-ink hover:text-accent"
-          >
-            Kaizen
-          </Link>
-          <NavTabs active="harness" />
-        </div>
-
-        <div className="flex items-center gap-5 text-[12px]">
+    <div className="flex min-h-screen flex-col">
+      <AppHeader active="harness">
           {boards.length > 1 ? (
             <label className="flex items-center gap-2">
               <span className="text-faint">board</span>
@@ -167,7 +158,7 @@ export function HarnessDashboard({
               >
                 {boards.map((b) => (
                   <option key={b} value={b} className="bg-void">
-                    {b.slice(0, 8)}
+                    {b.slice(0, 10)}
                   </option>
                 ))}
               </select>
@@ -191,12 +182,12 @@ export function HarnessDashboard({
           </span>
 
           {accountSlot}
-        </div>
-      </header>
+      </AppHeader>
+      <div className={`${PAGE_COLUMN} pt-5`}>
 
       {error ? <p className="text-[12px] text-bad">{error}</p> : null}
 
-      <div className="grid min-h-0 flex-1 gap-8 border-t border-hair pt-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="grid min-h-0 flex-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0 space-y-7">
           <section>
             <CurrentExecution latest={latest} running={runningItem} />
@@ -270,6 +261,7 @@ export function HarnessDashboard({
             />
           </div>
         </aside>
+      </div>
       </div>
     </div>
   );

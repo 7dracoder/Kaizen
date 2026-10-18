@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { NavTabs } from "@/components/NavTabs";
+import { AppHeader } from "@/components/AppHeader";
 
 import { ExecutionTrace } from "@/components/activity/ExecutionTrace";
 import { DeliverablesPanel } from "@/components/deliverables/DeliverablesPanel";
@@ -424,20 +423,7 @@ export function KaizenDashboard({
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-void">
       {/* Product status bar. Two facts on the left, two on the right. */}
-      <header className="flex h-12 shrink-0 items-center justify-between px-6">
-        <div className="flex items-center gap-5">
-          <Link
-            href="/"
-            className="text-[15px] font-medium tracking-[0.08em] text-ink hover:text-accent"
-          >
-            Kaizen
-          </Link>
-          <NavTabs active="board" />
-        </div>
-        <div className="flex items-center gap-5">
-          <span className="text-[12px] text-faint">
-            Harness <span className="font-mono text-dim">01</span>
-          </span>
+      <AppHeader active="board">
           <span className="flex items-center gap-2">
             <span
               className={`h-[6px] w-[6px] rounded-full ${status.dot} ${
@@ -449,8 +435,7 @@ export function KaizenDashboard({
           </span>
 
           {accountSlot}
-        </div>
-      </header>
+      </AppHeader>
 
       <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] lg:grid-cols-[minmax(0,1fr)_310px] lg:grid-rows-1">
         {/* The world. Instrumentation floats over it rather than beside it. */}

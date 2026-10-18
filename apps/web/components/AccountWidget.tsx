@@ -4,9 +4,7 @@ import { signOutAction } from "@/lib/auth-actions";
 
 /** Sign-in link when signed out, or the account's name/email + sign-out when signed in. Server-rendered. */
 export async function AccountWidget() {
-  if (!authConfigured()) {
-    return <span className="text-[12px] text-faint">Sign-in not configured</span>;
-  }
+  if (!authConfigured()) return null;
 
   const session = await auth();
   if (!session?.user) {

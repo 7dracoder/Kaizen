@@ -75,6 +75,7 @@ export interface BoardSummary {
   harness_version?: number;
   passed?: boolean;
   failures?: unknown[];
+  cached_from?: string;
   created_at?: string;
 }
 

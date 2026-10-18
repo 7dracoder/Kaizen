@@ -100,7 +100,8 @@ export const fmtTokens = (n: number | undefined): string =>
   n === undefined ? "—" : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
 export const fmtCost = (n: number | undefined): string =>
-  n === undefined ? "—" : `$${n.toFixed(n < 0.01 ? 4 : 3)}`;
+  // 0 means the model gateway reported no cost, not that the run was free.
+  !n ? "—" : `$${n.toFixed(n < 0.01 ? 4 : 3)}`;
 
 export const clockTime = (iso: string): string => {
   const d = new Date(iso);

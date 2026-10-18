@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { NavTabs } from "@/components/NavTabs";
+import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 
 import { ago, type BoardSummary, type Health, type LessonDoc, type SubcircuitDoc } from "@/lib/live";
 import { getJson, usePolling } from "@/lib/usePolling";
@@ -66,19 +66,8 @@ export function SystemConsole({ accountSlot }: { accountSlot?: ReactNode } = {})
   const connected = health?.connected === true;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-6">
-      <header className="flex h-12 shrink-0 items-center justify-between">
-        <div className="flex items-center gap-5">
-          <Link
-            href="/"
-            className="text-[15px] font-medium tracking-[0.08em] text-ink hover:text-accent"
-          >
-            Kaizen
-          </Link>
-          <NavTabs active="system" />
-        </div>
-
-        <div className="flex items-center gap-5 text-[12px]">
+    <div className="flex min-h-screen flex-col">
+      <AppHeader active="system">
           <button type="button" onClick={togglePause} className="text-faint hover:text-ink">
             {paused ? "Resume" : "Pause"}
           </button>
@@ -95,8 +84,8 @@ export function SystemConsole({ accountSlot }: { accountSlot?: ReactNode } = {})
           </span>
 
           {accountSlot}
-        </div>
-      </header>
+      </AppHeader>
+      <div className={`${PAGE_COLUMN} pt-5`}>
 
       {health && !connected ? (
         <p className="mt-4 text-[13px] text-bad">
@@ -207,6 +196,7 @@ export function SystemConsole({ accountSlot }: { accountSlot?: ReactNode } = {})
         </Link>
         .
       </footer>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 
-import { NavTabs } from "@/components/NavTabs";
+import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 import { ago, type BoardSummary } from "@/lib/live";
 import { getJson, usePolling } from "@/lib/usePolling";
 
@@ -24,7 +24,7 @@ const POLL_MS = 4000;
 // Columns of the trace, left to right: who acted → what they did → under which procedure → what it drew on.
 const COLUMN: Record<string, number> = { agent: 0, run: 1, build: 2, config: 3, rule: 4, lesson: 3, check: 4, subcircuit: 4 };
 const TINT: Record<string, string> = {
-  agent: "#4ec9e0", run: "#9aa7b8", build: "#e6edf5", config: "#c39bff", rule: "#c39bff",
+  agent: "#4ec9e0", run: "#9aa7b8", build: "#7c8aa0", config: "#c39bff", rule: "#c39bff",
   lesson: "#6fd39a", check: "#ff7a7a", subcircuit: "#f0c060",
 };
 
@@ -56,12 +56,12 @@ function TraceView({ trace }: { trace: Trace }) {
   return (
     <>
       <div className="overflow-x-auto rounded-md border border-line-soft bg-raised">
-        <svg viewBox={`0 0 900 ${layout.height}`} className="w-full min-w-[720px]" role="img" aria-label="Provenance graph of this build">
+        <svg viewBox={`0 0 900 ${layout.height}`} className="w-full min-w-[720px] text-ink" role="img" aria-label="Provenance graph of this build">
           {trace.edges.map((e, i) => {
             const a = layout.pos.get(e.from), b = layout.pos.get(e.to);
             if (!a || !b) return null;
             const ax = a.x + Math.min(layout.colW - 20, 160), ay = a.y - 4;
-            return <line key={i} x1={ax} y1={ay} x2={b.x} y2={b.y - 4} stroke="#ffffff" strokeOpacity={0.12} />;
+            return <line key={i} x1={ax} y1={ay} x2={b.x} y2={b.y - 4} stroke="currentColor" strokeOpacity={0.18} />;
           })}
           {trace.nodes.map((n) => {
             const p = layout.pos.get(n.id)!;
@@ -69,7 +69,7 @@ function TraceView({ trace }: { trace: Trace }) {
             return (
               <g key={n.id}>
                 <circle cx={p.x + 4} cy={p.y - 4} r={3.5} fill={TINT[n.type] ?? "#9aa7b8"} />
-                <text x={p.x + 12} y={p.y} fontSize={11} fill="#c9d3df">
+                <text x={p.x + 12} y={p.y} fontSize={11} fill="currentColor">
                   <title>{`${n.type}: ${n.label}`}</title>
                   {label}
                 </text>
@@ -104,7 +104,8 @@ export function MemoryGraph({ accountSlot }: { accountSlot?: ReactNode } = {}) {
     return (boards?.boards ?? []).filter((b) => (seen.has(b.board_id) ? false : (seen.add(b.board_id), true)));
   }, [boards]);
   const [picked, setPicked] = useState<string | null>(null);
-  const selected = picked ?? builds[0]?.board_id ?? null;
+  // Default to the newest build the agents actually designed; cache copies have an almost empty trace.
+  const selected = picked ?? (builds.find((b) => !b.cached_from) ?? builds[0])?.board_id ?? null;
   const [trace, setTrace] = useState<Trace | null>(null);
 
   useEffect(() => {
@@ -122,14 +123,9 @@ export function MemoryGraph({ accountSlot }: { accountSlot?: ReactNode } = {}) {
   const rels = summary?.relationships?.reduce((s, r) => s + r.n, 0) ?? 0;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
-      <header className="flex h-12 shrink-0 items-center justify-between">
-        <div className="flex items-center gap-5">
-          <Link href="/" className="text-[15px] font-medium tracking-[0.08em] text-ink hover:text-accent">Kaizen</Link>
-          <NavTabs active="memory" />
-        </div>
-        <div className="flex items-center gap-5 text-[12px]">{accountSlot}</div>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <AppHeader active="memory">{accountSlot}</AppHeader>
+      <div className={PAGE_COLUMN}>
 
       <main className="flex-1 divide-y divide-hair">
         <Section title="Memory graph" note={summary?.error ? summary.error : `FalkorDB · ${nodes} nodes · ${rels} relationships`}>
@@ -155,7 +151,7 @@ export function MemoryGraph({ accountSlot }: { accountSlot?: ReactNode } = {}) {
             >
               {builds.map((b) => (
                 <option key={b.board_id} value={b.board_id}>
-                  {b.board_id} {b.spec_id ? `· ${b.spec_id}` : ""} {b.passed === true ? "· passed" : b.passed === false ? "· failed" : ""}
+                  {b.board_id} {b.spec_id ? `· ${b.spec_id}` : ""} {b.passed === true ? "· passed" : b.passed === false ? "· failed" : ""} {b.cached_from ? "· cached" : ""}
                 </option>
               ))}
             </select>
@@ -217,6 +213,7 @@ export function MemoryGraph({ accountSlot }: { accountSlot?: ReactNode } = {}) {
         </div>
       </main>
       <footer className="border-t border-hair py-6 text-[12px] text-faint">Read-only view of the Kaizen graph · polling every {POLL_MS / 1000}s</footer>
+      </div>
     </div>
   );
 }
