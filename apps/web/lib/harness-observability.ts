@@ -149,7 +149,7 @@ export function deriveActorFromRun(run: RunWithFuture): {
 export function deriveRunStatus(run: RunDoc): ObservationStatus {
   if (run.stage === "error") return "failure";
   // A critique is advice, not an attempt: it neither passes nor fails.
-  if (run.stage === "critique" || run.stage === "improve_critique") return "info";
+  if (run.stage === "critique" || run.stage === "improve_critique" || run.stage === "memory") return "info";
   if (run.passed) return "success";
   // A compile record that did not pass is a failed attempt, not a neutral note.
   return "failure";
@@ -180,6 +180,8 @@ function summarizeRun(run: RunWithFuture, actor: Actor): string {
       return "Harness evaluation";
     case "cache_hit":
       return "Served from cache — already verified under this harness version";
+    case "memory":
+      return "Picked the coder's lessons and subcircuits from the graph";
     default:
       return `${actor} · ${run.stage}`;
   }

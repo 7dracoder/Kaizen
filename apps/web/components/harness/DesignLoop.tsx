@@ -10,7 +10,7 @@ import { DESIGN_LOOP, type LoopStage } from "@/lib/harness-observability";
  * exactly once than to chase with absolute positioning.
  *
  * Only the step the worker actually reported is highlighted. Spec and Write
- * never light up because no run is written for them — see the footnote.
+ * never light up because no run is written for them.
  */
 
 const BOX_W = 168;
@@ -175,10 +175,6 @@ export function DesignLoop({
         </text>
       </svg>
 
-      <p className="mt-1 text-[11px] text-ghost">
-        Spec and Write write no run, so they never light up. Highlighted stage
-        comes from the newest record&apos;s <span className="font-mono">stage</span>.
-      </p>
     </div>
   );
 }

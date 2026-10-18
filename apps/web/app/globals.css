@@ -286,6 +286,13 @@ body {
   scrollbar-color: var(--ghost) transparent;
 }
 
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Marching ants: shows the direction of travel between two loop stages. */
 @keyframes dash-march {
   to {

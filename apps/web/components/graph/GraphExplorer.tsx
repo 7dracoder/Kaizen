@@ -4,7 +4,7 @@
 // paths decided what the coder was given. Polls every 2 s; new nodes animate in, existing ones keep their place.
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowsClockwise, Graph, MagnifyingGlass, Play } from "@phosphor-icons/react";
+import { Graph, MagnifyingGlass, Play } from "@phosphor-icons/react";
 
 import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 import { getJson, usePolling } from "@/lib/usePolling";
@@ -49,11 +49,10 @@ const OVERVIEW = "__overview__";
 
 const panel = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-panel)" } as const;
 
-function Panel({ title, icon, note, children }: { title: string; icon?: ReactNode; note?: string; children: ReactNode }) {
+function Panel({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
     <section className="p-4" style={panel}>
       <div className="flex items-baseline gap-2">
-        {icon ? <span className="self-center text-accent">{icon}</span> : null}
         <h2 className="text-[13px] font-semibold text-ink">{title}</h2>
         {note ? <span className="text-[11px] text-faint">{note}</span> : null}
       </div>
@@ -259,9 +258,9 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
           ) : null}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="no-scrollbar space-y-4 lg:max-h-[600px] lg:overflow-y-auto lg:overscroll-contain">
           {isOverview ? (
-            <Panel title="The whole memory" icon={<Graph size={15} weight="bold" />} note="every agent reads and writes this graph">
+            <Panel title="The whole memory" note="every agent reads and writes this graph">
               <p className="text-[12px] leading-relaxed text-dim">
                 Pick a build (or start one above) to see where the coder&apos;s context came from. Runs point at the agent that made them,
                 the harness version they ran under, the checks they failed, and the lessons they used; lessons point back at the build
@@ -349,7 +348,7 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
             </Panel>
           )}
 
-          <Panel title="Queries behind this view" icon={<ArrowsClockwise size={15} weight="bold" />} note={`re-run every ${POLL_MS / 1000}s`}>
+          <Panel title="Queries behind this view" note={`re-run every ${POLL_MS / 1000}s`}>
             <ul className="space-y-3">
               {(net?.queries ?? []).map((q, i) => (
                 <Cypher key={i} q={q} />
