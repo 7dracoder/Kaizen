@@ -130,6 +130,7 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
   const { data: lessonsData } = usePolling(() => getJson<{ lessons?: LessonRow[] }>("/api/memory"), 5000);
 
   const memoryRecord = (buildRuns?.runs ?? []).find((r) => r.stage === "memory")?.memory ?? null;
+  const isCacheHit = (buildRuns?.runs ?? []).some((r) => r.stage === "cache_hit");
   const lessonById = useMemo(() => new Map((lessonsData?.lessons ?? []).map((l) => [l._id, l])), [lessonsData]);
   const savedLessons = useMemo(() => [...new Set((buildRuns?.runs ?? []).flatMap((r) => r.critique?.lessons_saved ?? []))], [buildRuns]);
 
@@ -161,6 +162,8 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
   useEffect(() => {
     if (autoStarted.current || !initialPrompt || initialPrompt.trim().length < 10) return;
     autoStarted.current = true;
+    // Drop ?q= so a reload doesn't queue the same build again.
+    window.history.replaceState(null, "", "/graph");
     void startBuild();
   }, [initialPrompt]);
 
@@ -329,6 +332,12 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
                     </ul>
                   </div>
                 </div>
+              ) : isCacheHit ? (
+                <p className="text-[12px] text-faint">
+                  Same wording as a board that already passed under this harness version, so the stored design was re-graded
+                  against today&apos;s hidden checks and served without model calls. Pick the original build in View to see how the
+                  graph decided its context.
+                </p>
               ) : (
                 <p className="text-[12px] text-faint">
                   No memory record for this build. Builds made before graph-driven context, and stand-in runs, don&apos;t consult the graph.

@@ -10,6 +10,17 @@ Kaizen turns a sentence like *"USB-C powered temperature sensor with a status LE
 
 **FalkorDB is the only database.** It holds the agents' memory (episodic, semantic, procedural), their shared work queue, the request inbox, user accounts and one private graph per user. Take FalkorDB away and the agents have nothing to read, nothing to claim and nothing to remember.
 
+### How Kaizen uses FalkorDB
+
+| FalkorDB feature | What Kaizen does with it |
+|---|---|
+| Cypher traversals | Before every build, five queries decide which lessons, warnings and subcircuits the coder gets (see [How the agent queries it](#how-the-agent-queries-it)) |
+| Vector indexes on nodes | `Lesson`, `Subcircuit` and failure nodes carry embeddings in the same graph, so similarity search and traversal run against one store |
+| Atomic queries | A worker claims the next ready `WorkItem` or `Request` in one query: no locks, no double claims (tested with 12 workers racing for 6 steps) |
+| Pub/sub | The web app writes a `Request` node and publishes its id; the worker wakes immediately instead of polling |
+| Multigraph | One shared graph `kaizen` for agent memory, plus one isolated graph `kaizen_user_<hash>` per user for their history, in a single instance |
+| Properties as the source of truth | Every record is a node; a `_rev` property makes updates compare-and-set, and edges are re-derived on every write so the graph never drifts |
+
 ## The problem
 
 Most first-run PCBs get respun for the same handful of mistakes: missing I2C pull-ups, no decoupling capacitor next to a chip, an unconnected pin, a routing error. LLMs can write board code, but on their own they make those mistakes again and again. They have no memory of what failed last time, no way to check their own work against the requirements, and no record of *why* they made a choice.
@@ -170,6 +181,18 @@ The second attempt passed every hidden check.
 ```
 
 Both lessons were chosen by **graph path**, not by text similarity. Result: across all 5 attempts, `pullups` and `tied` never failed again. `decoupling` failed every time, because no lesson for it had been written yet. That's the honest picture: the graph fixed the class of mistake it had evidence about, and only that one.
+
+**Build 3:** *"I2C humidity sensor board, USB-C powered"*, also new to the graph. By now query 1 ranked `decoupling` as the riskiest check (failed 7 times across builds), so the spec carried that warning, and both I2C lessons were again picked by graph path. Attempt 1 failed `decoupling` and `separate`, the critic repaired it, and attempt 2 passed every hidden check, followed by three improve rounds that also passed. `pullups` and `tied` did not fail once.
+
+**Query it yourself.** Everything above is plain FalkorDB data, so you can check it without the app (or in [FalkorDB Browser](https://browser.falkordb.com)):
+
+```bash
+# Why was each lesson handed to the coder? The decision record the agent stored before building
+redis-cli GRAPH.QUERY kaizen "MATCH (r:Run {stage: 'memory'}) RETURN r.board_id, r._doc LIMIT 3"
+
+# Which lesson came from which failed build?
+redis-cli GRAPH.QUERY kaizen "MATCH (l:Lesson)-[:LEARNED_FROM]->(b:Build)<-[:OF_BUILD]-(r:Run)-[:FAILED_CHECK]->(k:Check) RETURN l.pattern, b.id, collect(DISTINCT k.name)"
+```
 
 **See it live:** open `/graph`, type a board and press **Build and watch**. Nodes arrive as the agents write them, the lessons the graph chose are ringed, and the side panel lists the exact Cypher, row counts and the reason for every pick. The panel also lists every query behind the view.
 

@@ -18,4 +18,5 @@ bunfig.toml
 out/
 .data/
 KAIZEN_PRIVATE_GUIDE.md
+SUBMISSION.md
 /*.zip

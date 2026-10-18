@@ -61,6 +61,18 @@ export function ForceCanvas({
     if (!mounted || !fg) return;
     (fg.d3Force("charge") as unknown as { strength?: (n: number) => void })?.strength?.(-140);
     (fg.d3Force("link") as unknown as { distance?: (n: number) => void })?.distance?.(38);
+    // Weak pull to the origin, so loosely linked neighbour builds don't drift off and shrink the fit.
+    let simNodes: GNode[] = [];
+    const gravity = Object.assign(
+      (alpha: number) => {
+        for (const n of simNodes) {
+          n.vx = (n.vx ?? 0) - (n.x ?? 0) * 0.06 * alpha;
+          n.vy = (n.vy ?? 0) - (n.y ?? 0) * 0.06 * alpha;
+        }
+      },
+      { initialize: (ns: GNode[]) => void (simNodes = ns) },
+    );
+    fg.d3Force("gravity", gravity as unknown as Parameters<typeof fg.d3Force>[1]);
     fg.d3ReheatSimulation();
   }, [mounted]);
 
@@ -84,6 +96,14 @@ export function ForceCanvas({
   useEffect(() => {
     fitted.current = false;
   }, [firstId]);
+
+  // While a build runs, nodes keep arriving and the simulation may never stop, so refit as the graph grows.
+  const nodeCount = nodes.length;
+  useEffect(() => {
+    if (!mounted || !nodeCount) return;
+    const t = setTimeout(() => fgRef.current?.zoomToFit(500, 48), 700);
+    return () => clearTimeout(t);
+  }, [mounted, nodeCount, firstId]);
 
   return (
     <div
