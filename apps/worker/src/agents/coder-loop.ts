@@ -355,10 +355,16 @@ export async function runBoard(specId: string, config: HarnessConfig, opts: RunB
     for (let round = 1; round <= IMPROVE_ROUNDS; round++) {
       const current: CoderResult = coderResult;
       const pinned = bakePlacement(withoutPlacement(current.source), current.circuitJson as never);
-      const review = await runImprover(
-        { spec, code: pinned, circuitJson: current.circuitJson, metrics: current.metrics, rules: config.rules, lastTry },
-        { complete: completeCritic },
-      );
+      // Improving is optional: a model error here ends the rounds and keeps the board that already passed.
+      let review: Awaited<ReturnType<typeof runImprover>>;
+      try {
+        review = await runImprover(
+          { spec, code: pinned, circuitJson: current.circuitJson, metrics: current.metrics, rules: config.rules, lastTry },
+          { complete: completeCritic },
+        );
+      } catch {
+        break;
+      }
       if (completeCritic.lastUsage) {
         const u = completeCritic.lastUsage;
         await col.runs.replaceOne({ _id: `${boardId}_improve${round}_critique` }, {
@@ -397,7 +403,7 @@ export async function runBoard(specId: string, config: HarnessConfig, opts: RunB
         }
         ({ runResult: run, checkScore: score } = await grade(edited.circuitJson, edited.metrics, edited.model));
       } catch (err) {
-        if (!(err instanceof CoderCompileError)) throw err;
+        if (!(err instanceof CoderCompileError)) break;
         run = compileFailure(err);
       }
       run = { ...run, stage: "improve" };
