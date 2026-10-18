@@ -1,13 +1,14 @@
 "use client";
 
-/**
- * Surround for the board: a flat scene background. Set on the scene itself
- * rather than drawn as geometry, so three's color management renders the
- * exact sRGB value.
- */
+import { useThemeColors } from "@/components/theme/ThemeProvider";
 
-export const WORLD_BACKGROUND = "#222733"; // rgb(34, 39, 51)
+/**
+ * Surround for the board: a flat scene background in the active theme's elevated surface colour. Set on the scene
+ * itself rather than drawn as geometry, so three's colour management renders the exact sRGB value.
+ */
+export const WORLD_BACKGROUND = "#1b2333";
 
 export function WorldEnvironment() {
-  return <color attach="background" args={[WORLD_BACKGROUND]} />;
+  const { bg } = useThemeColors({ bg: ["--surface-elevated", WORLD_BACKGROUND] });
+  return <color attach="background" args={[bg]} />;
 }

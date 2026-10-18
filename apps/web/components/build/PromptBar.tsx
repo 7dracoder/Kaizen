@@ -61,7 +61,7 @@ export function PromptBar({
       <button
         type="submit"
         disabled={value.trim().length === 0}
-        className="shrink-0 rounded-sm bg-accent px-5 py-1.5 text-[13px] font-semibold text-[#06121f] hover:opacity-90 disabled:opacity-40"
+        className="shrink-0 rounded-sm bg-accent px-5 py-1.5 text-[13px] font-semibold text-accent-contrast hover:opacity-90 disabled:opacity-40"
       >
         Build
       </button>

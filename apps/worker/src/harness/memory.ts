@@ -10,6 +10,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { HarnessConfig, Lesson } from "@kaizen/types";
 import { cypher, vectorSearch as graphVectorSearch } from "@kaizen/graph";
 import { col, type StoredLesson, type StoredSubcircuit } from "../db.js";
+import { aiApiKey, aiBaseUrl } from "../tools/router.js";
 
 type Document = object;
 
@@ -40,7 +41,10 @@ async function voyage(path: string, body: unknown): Promise<any> {
 
 /** Embeds short descriptions (not raw code). Use "query" for search text, "document" for stored text. */
 export async function embed(texts: string[], inputType: "document" | "query"): Promise<number[][]> {
-  if (!process.env.VOYAGE_API_KEY) return texts.map(localEmbedding);
+  if (!process.env.VOYAGE_API_KEY) {
+    if (gatewayEmbedModel()) return gatewayEmbed(texts);
+    return texts.map(localEmbedding);
+  }
   const json = await voyage("embeddings", {
     input: texts,
     model: process.env.VOYAGE_MODEL || "voyage-4",
@@ -49,8 +53,35 @@ export async function embed(texts: string[], inputType: "document" | "query"): P
   return json.data.map((d: { embedding: number[] }) => d.embedding);
 }
 
+/** Embeddings through the model gateway (OpenAI-compatible POST /embeddings) when EMBED_MODEL is set. */
+const gatewayEmbedModel = () => (aiApiKey() && process.env.EMBED_MODEL ? process.env.EMBED_MODEL : null);
+
+async function gatewayEmbed(texts: string[]): Promise<number[][]> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${aiBaseUrl()}/embeddings`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${aiApiKey()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: gatewayEmbedModel(), input: texts }),
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { data: { embedding: number[]; index?: number }[] };
+      return [...json.data].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).map((d) => d.embedding);
+    }
+    if ((res.status === 429 || res.status >= 500) && attempt < 4) {
+      await sleep(Math.min(20_000, 2_000 * 2 ** attempt));
+      continue;
+    }
+    throw new Error(`embeddings ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+}
+
 /** Which embedder made the vectors this process writes and searches. */
-export const embedderId = () => (process.env.VOYAGE_API_KEY ? `voyage:${process.env.VOYAGE_MODEL || "voyage-4"}` : "local-hash-v1");
+export const embedderId = () =>
+  process.env.VOYAGE_API_KEY
+    ? `voyage:${process.env.VOYAGE_MODEL || "voyage-4"}`
+    : gatewayEmbedModel()
+      ? `gateway:${gatewayEmbedModel()}`
+      : "local-hash-v1";
 
 const DIMS = Number(process.env.EMBEDDING_DIMS || 1024);
 

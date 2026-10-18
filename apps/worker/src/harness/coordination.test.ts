@@ -12,6 +12,7 @@ const queue = await import("./queue.ts");
 const requests = await import("./requests.ts");
 const memory = await import("./memory.ts");
 const { BASELINE } = await import("./config.ts");
+const { graphContext } = await import("./graph-context.ts");
 
 let reachable = true;
 before(async () => {
@@ -97,5 +98,27 @@ describe("memory (local embedder)", () => {
     assert.equal(hits[0]?._id, id);
     const [src] = await graph.cypher<{ b: string }>(`MATCH (:Lesson {_id: $id})-[:LEARNED_FROM]->(b:Build) RETURN b.id AS b`, { id });
     assert.equal(src?.b, "b-i2c");
+  });
+});
+
+describe("graph-driven context", () => {
+  live("a new spec gets the lessons learned from builds that failed the checks it is likely to fail", async () => {
+    const policy = { ...BASELINE.context, rerank: false, lessons_k: 3 };
+    await col.harness.updateOne({ _id: "v0" }, { $setOnInsert: BASELINE }, { upsert: true });
+    // An earlier build failed `decoupling`, and the critic learned a lesson from it.
+    await col.runs.replaceOne(
+      { _id: "old_1" },
+      { board_id: "old-build", spec_id: "t07", harness_version: 0, stage: "checks", passed: false, failures: [{ check: "decoupling", detail: "U1 VDD has no cap" }], drc_errors: 0, ts: new Date().toISOString() },
+      { upsert: true },
+    );
+    const lesson = await memory.addLesson({ pattern: "Every microcontroller VDD pin needs its own 100nF capacitor", fix: "Place C next to each VDD" }, { boardId: "old-build" });
+    // A brand-new spec with no history of its own, worded nothing like the lesson.
+    const ctx = await graphContext({ _id: "adhoc-new", text: "A blinking light for a bike" }, policy);
+    assert.ok(ctx.riskyChecks.some((r) => r.check === "decoupling"));
+    const pick = ctx.picks.lessons.find((p) => p.id === lesson);
+    assert.equal(pick?.via, "graph");
+    assert.match(pick!.why, /decoupling/);
+    assert.equal(ctx.lessons[0]?._id, lesson);
+    assert.ok(ctx.queries.some((q) => q.purpose.startsWith("Lessons learned from builds") && q.rows >= 1));
   });
 });

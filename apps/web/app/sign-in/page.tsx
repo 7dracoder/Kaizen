@@ -22,7 +22,7 @@ export default async function SignInPage({
       <form action={signInGoogleAction} className="w-full">
         <button
           type="submit"
-          className="w-full rounded-md bg-accent px-5 py-2 text-[13px] font-semibold text-[#06121f] hover:opacity-90"
+          className="w-full rounded-md bg-accent px-5 py-2 text-[13px] font-semibold text-accent-contrast hover:opacity-90"
         >
           Continue with Google
         </button>

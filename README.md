@@ -2,7 +2,7 @@
 
 **Circuit boards from plain English, designed by AI agents that share one graph memory.**
 
-Kaizen turns a sentence like *"USB-C powered temperature sensor with a status LED"* into a routed, manufacturable printed circuit board (Gerbers, BOM, KiCad project, 3D model). A team of agents plans, writes, checks and repairs the board. Everything they do (every attempt, failure, lesson, reusable subcircuit, config change and handoff) lands in one [FalkorDB](https://www.falkordb.com) graph. The next board starts from what the last one learned, and every decision can be traced back to its source.
+Kaizen turns a sentence like *"USB-C powered temperature sensor with a status LED"* into a routed, manufacturable printed circuit board (Gerbers, BOM, KiCad project, 3D model). A team of agents plans, writes, checks and repairs the board. Everything they do (every attempt, failure, lesson, reusable subcircuit, config change and handoff) lands in one [FalkorDB](https://www.falkordb.com) graph, and **the graph decides what the agents are told**: before each build, Cypher traversals pick the lessons and blocks with real outcomes behind them. Every decision can be traced back to the path that caused it.
 
 ![Landing page](docs/screenshots/landing.png)
 
@@ -18,7 +18,7 @@ Most first-run PCBs get respun for the same handful of mistakes: missing I2C pul
 4. **Remember**: the next build retrieves the relevant lessons and subcircuits by vector search over the graph. Every run records which lessons and which harness version shaped it.
 5. **Evolve**: a meta-agent proposes changes to the system's own rules and routing. A gate keeps a change only if the next batch scores better, and the full lineage stays in the graph.
 
-| Board (real 3D view of a 20-part board built through the work queue) | Memory graph and the "why" trace of one build |
+| Board (3D view of a 20-part board built through the work queue) | Memory summary and the "why" trace of one build |
 |---|---|
 | ![3D board](docs/screenshots/board-3d.png) | ![Memory graph](docs/screenshots/memory-graph.png) |
 
@@ -52,23 +52,85 @@ flowchart LR
   Worker -.optional.-> V[Voyage embeddings + rerank]
 ```
 
-### The graph
+## The graph (FalkorDB is where the decisions come from)
 
-```
-(:Config)-[:CHILD_OF]->(:Config)               harness lineage            (procedural memory)
-(:Config)-[:HAS_RULE]->(:Rule)
-(:Run)-[:OF_BUILD]->(:Build)-[:FOR_SPEC]->(:Spec)                         (episodic memory)
-(:Run)-[:UNDER]->(:Config)    (:Run)-[:BY_AGENT]->(:Agent)    (:Run)-[:FAILED_CHECK]->(:Check)
-(:Run)-[:USED_LESSON]->(:Lesson)-[:LEARNED_FROM]->(:Build)                (semantic memory, vector-indexed)
-(:Run)-[:REUSED]->(:Subcircuit)                                           (vector-indexed)
-(:WorkItem)-[:PART_OF]->(:Build)  (:WorkItem)-[:DEPENDS_ON]->(:WorkItem)  (:WorkItem)-[:CLAIMED_BY]->(:Worker)
-(:Agent)-[:HANDS_OFF_TO]->(:Agent)
-(:User)-[:REQUESTED]->(:Request)-[:PRODUCED]->(:Build)
-(:User)-[:HAS_ACCOUNT]->(:Account)  (:User)-[:HAS_SESSION]->(:Session)
-per-user graph kaizen_user_<hash>:  (:Episode)-[:NEXT]->(:Episode)-[:ABOUT]->(:Build)
+Every agent reads and writes one FalkorDB graph. Before the coder writes a line, Kaizen **traverses the graph** to decide what it gets told: the checks this kind of board tends to fail, the lessons learned from builds that failed them, the lessons that were in context when this spec passed, and the subcircuits that passing builds reused. Vector search only fills whatever space is left.
+
+![Live graph view: a real build, the lessons the graph chose (ringed), and the Cypher behind each choice](docs/screenshots/graph-live.png)
+
+### Graph map
+
+```mermaid
+flowchart LR
+  User((User)) -- REQUESTED --> Request
+  Request -- PRODUCED --> Build
+  Build -- FOR_SPEC --> Spec
+  Run -- OF_BUILD --> Build
+  Run -- BY_AGENT --> Agent
+  Run -- UNDER --> Config
+  Run -- FAILED_CHECK --> Check
+  Run -- USED_LESSON --> Lesson
+  Run -- REUSED --> Subcircuit
+  Lesson -- LEARNED_FROM --> Build
+  Config -- CHILD_OF --> Config
+  Config -- HAS_RULE --> Rule
+  BoardVersion -- OF_BUILD --> Build
+  WorkItem -- PART_OF --> Build
+  WorkItem -- DEPENDS_ON --> WorkItem
+  WorkItem -- CLAIMED_BY --> Worker
+  Agent -- HANDS_OFF_TO --> Agent
+  Episode -- NEXT --> Episode
+  Episode -- ABOUT --> Build
 ```
 
-### How each core part works
+| Node | What it is | Memory type |
+|---|---|---|
+| `Run` | one attempt or agent step (compile, checks, critique, memory lookup), with model, tokens, failures | episodic |
+| `Lesson`, `Subcircuit` | a learned design rule, a verified reusable block; both have FalkorDB vector indexes | semantic |
+| `Config`, `Rule` | a version of the harness (rules, routing, workflow) and its lineage | procedural |
+| `Build`, `Spec`, `Check`, `Agent` | hubs that connect everything about one board, one task, one kind of failure, one agent | — |
+| `WorkItem`, `Worker` | steps of a long board and the worker holding each one: shared state between processes | coordination |
+| `Request`, `User`, `Episode` | who asked for what; each user's own conversation history in a separate graph (`kaizen_user_<hash>`) | per-user |
+
+### How the agent queries it
+
+`apps/worker/src/harness/graph-context.ts` runs these before every build and stores the result (queries, row counts, and *why* each lesson was picked) on a `Run {stage: "memory"}` node, which the UI shows:
+
+```cypher
+// 1. Which checks have builds of this spec failed before?  (falls back to the most-failed checks overall)
+MATCH (:Spec {id: $spec})<-[:FOR_SPEC]-(:Build)<-[:OF_BUILD]-(r:Run)-[:FAILED_CHECK]->(k:Check)
+RETURN k.name AS check, count(r) AS times ORDER BY times DESC LIMIT 6
+
+// 2. Which lessons were learned from builds that failed those checks?
+MATCH (k:Check)<-[:FAILED_CHECK]-(:Run)-[:OF_BUILD]->(b:Build)<-[:LEARNED_FROM]-(l:Lesson)
+WHERE k.name IN $checks AND l.active = true
+RETURN l._id AS id, collect(DISTINCT k.name) AS checks, count(DISTINCT b) AS builds ORDER BY builds DESC
+
+// 3. Which lessons were in context when this spec actually passed?
+MATCH (:Spec {id: $spec})<-[:FOR_SPEC]-(:Build)<-[:OF_BUILD]-(r:Run {passed: true})-[:USED_LESSON]->(l:Lesson)
+RETURN l._id AS id, count(r) AS wins ORDER BY wins DESC
+
+// 4. Which subcircuits did passing builds of this spec reuse?
+MATCH (:Spec {id: $spec})<-[:FOR_SPEC]-(:Build)<-[:OF_BUILD]-(r:Run {passed: true})-[:REUSED]->(s:Subcircuit)
+RETURN s._id AS id, count(r) AS wins ORDER BY wins DESC
+
+// 5. Then vector search fills the remaining slots
+CALL db.idx.vector.queryNodes('Lesson', 'embedding', $k, vecf32($spec_embedding)) YIELD node, score
+```
+
+The picks go into the coder's prompt, the risky checks become a warning in the spec, and the run that uses them gets `USED_LESSON` edges, so the next build's query 3 can see whether they helped. Coordination uses the graph too: claiming a work item is one atomic query.
+
+```cypher
+MATCH (w:WorkItem) WHERE w.status = 'pending' AND size(w.waiting_on) = 0 AND w.board_id = $b
+WITH w ORDER BY w.step ASC LIMIT 1
+SET w.status = 'running', w.claimed_by = $worker, w.heartbeat = $t, w.attempts = w.attempts + 1
+MERGE (k:Worker {id: $worker}) MERGE (w)-[:CLAIMED_BY]->(k)
+RETURN properties(w)
+```
+
+**See it live:** open `/graph`, type a board and press **Build and watch**. Nodes arrive as the agents write them, the lessons the graph chose are ringed, and the side panel lists the exact Cypher, row counts and the reason for every pick. The panel also lists every query behind the view.
+
+## How each core part works
 
 - **Graph store** (`packages/graph`): records are FalkorDB nodes. Scalar fields are node properties, so Cypher can filter, index and traverse them. Nested data (failures, Circuit JSON) is stored as JSON on the node. Every write re-derives the node's relationships, so the graph never drifts from the records. A `_rev` counter makes read-modify-write updates compare-and-set.
 - **Coordination**: FalkorDB runs each query atomically. Claiming the next ready work item ("pending, no unfinished dependency, lowest step") is one Cypher query, and so is claiming a spec request. Twelve concurrent workers racing for six steps never double-claim, and that's covered by a test. Heartbeats plus process checks make a killed worker's step resumable. Pub/sub wakes the worker the moment a request arrives.
@@ -79,16 +141,16 @@ per-user graph kaizen_user_<hash>:  (:Episode)-[:NEXT]->(:Episode)-[:ABOUT]->(:B
 
 ## Tech stack
 
-TypeScript on Node 22 · FalkorDB 4.18 (graph + vector + pub/sub) · Next.js 16, React 19, Tailwind 4, React Three Fiber · tscircuit (pinned) · Auth.js with a FalkorDB adapter · OpenAI-compatible model API (OpenRouter by default) · Voyage AI (optional) · LangSmith (optional)
+TypeScript on Node 22 · FalkorDB 4.18 (graph + vector + pub/sub) · Next.js 16, React 19, Tailwind 4, React Three Fiber, react-force-graph, Phosphor icons · tscircuit (pinned) · Auth.js with a FalkorDB adapter · any OpenAI-compatible model gateway (runs on Nicrron: GPT-4o-mini for the coder, Claude Sonnet 4.6 for planner/critic/meta, voyage-4 embeddings) · LangSmith (optional)
 
 ## Folder layout
 
 ```
-apps/web/          Next.js app: pages, API routes, 3D board scene, FalkorDB auth adapter
+apps/web/          Next.js app: pages (board, live graph, memory, harness, system), API routes, 3D board scene, themes, FalkorDB auth adapter
 apps/worker/       agents (planner, coder, critic, meta), tools (compile, DRC, metrics, router),
-                   harness (config, gate, memory, queue, requests), long-horizon pipeline, exporters
+                   harness (config, gate, memory, graph-driven context, queue, requests), long-horizon pipeline, exporters
 packages/graph/    FalkorDB client, record collections, schema and relationships, vector search,
-                   per-user graphs, provenance traversals
+                   per-user graphs, provenance traversals, network export for the live view
 packages/types/    shared contracts (HarnessConfig, RunResult, ...)
 checks/            hidden checker (never shown to agents)
 specs/             public spec text      parts/  whitelisted parts
@@ -120,8 +182,8 @@ npm run green                                 # one real call per configured ser
 | Key | Priority | Unlocks | Without it |
 |---|---|---|---|
 | `FALKORDB_URL` | required | everything (defaults to local `redis://127.0.0.1:6379`) | nothing works; pages show "Disconnected" |
-| `AI_API_KEY` (+ `AI_BASE_URL`) | 1 | the agents: designing boards from the web or CLI | builds fail with a clear message |
-| `VOYAGE_API_KEY` | 2 | semantic embeddings and reranking for memory | local hashing embedder (works, lower recall) |
+| `AI_API_KEY` (+ `AI_BASE_URL`, e.g. `https://api.nicrron.ai/v1`) | 1 | the agents: designing boards from the web or CLI | builds fail with a clear message |
+| `EMBED_MODEL` (same gateway key) or `VOYAGE_API_KEY` | 2 | semantic embeddings for memory (`voyage/voyage-4`, 1024 dims); Voyage direct adds reranking | local hashing embedder (works, lower recall) |
 | `AUTH_SECRET` + `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` or `AUTH_RESEND_KEY` | 3 | sign-in, per-user memory graphs and build limits | anonymous mode, no personal history |
 | `LANGSMITH_API_KEY` | 4 | traces of every model call | no tracing |
 
@@ -130,6 +192,7 @@ npm run green                                 # one real call per configured ser
 | Route | Returns |
 |---|---|
 | `GET /api/health` | FalkorDB connection, record counts, user-graph count, active embedder |
+| `GET /api/graph/network[?board_id=]` | the graph as nodes + links (one build's neighbourhood, or the whole memory) plus the Cypher that produced it |
 | `GET /api/graph` | memory summary: node/relationship counts, lessons ranked by passing uses, most-failed checks, config lineage |
 | `GET /api/graph?board_id=` | provenance trace of one build (nodes + edges) |
 | `GET /api/history` | the signed-in user's conversation history from their own graph |

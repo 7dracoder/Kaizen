@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-
+import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-// Sans carries the interface. Mono is reserved for machine values —
-// designators, measurements, step numbers — never for headings or buttons.
-const sans = Geist({ variable: "--font-sans", subsets: ["latin"] });
-const mono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"] });
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+
+// Same type system as the whatspoppin design: Plus Jakarta Sans for the interface,
+// JetBrains Mono only for machine values (designators, measurements, step numbers, Cypher).
+const sans = Plus_Jakarta_Sans({ variable: "--font-sans", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const mono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"], weight: ["400", "500", "600"] });
 
 export const metadata: Metadata = {
   title: "Kaizen",
@@ -17,9 +18,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-theme="soft-pixel-finance"
+      data-mode="dark"
+      suppressHydrationWarning
       className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-void text-ink">{children}</body>
+      <body className="min-h-full bg-void text-ink">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

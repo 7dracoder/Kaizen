@@ -70,7 +70,7 @@ export function SpecificationBar({
         type="submit"
         disabled={building || value.trim().length === 0}
         aria-busy={building}
-        className={`shrink-0 rounded-md bg-accent px-5 py-2.5 text-[14px] font-semibold text-[#06121f] ${
+        className={`shrink-0 rounded-md bg-accent px-5 py-2.5 text-[14px] font-semibold text-accent-contrast ${
           building ? "breathe cursor-progress" : "hover:opacity-90 disabled:opacity-40"
         }`}
       >

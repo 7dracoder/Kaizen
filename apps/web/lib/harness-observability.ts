@@ -72,6 +72,7 @@ export const STAGE_ACTOR_MAP: Record<string, Actor> = {
   meta: "meta",
   error: "system",
   cache_hit: "system",
+  memory: "system",
 };
 
 /** The design loop, as documented. `telemetry: false` means no run is ever

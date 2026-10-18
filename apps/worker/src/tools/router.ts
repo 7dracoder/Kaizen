@@ -54,11 +54,49 @@ export const aiBaseUrl = () => (process.env.AI_BASE_URL || "https://openrouter.a
 export const aiApiKey = () => process.env.AI_API_KEY || process.env.OPENROUTER_API_KEY;
 const isOpenRouter = () => aiBaseUrl().includes("openrouter.ai");
 
+/** Retries rate limits (gateways allow ~60 requests a minute per key) and transient gateway errors. */
+async function postWithRetry(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init);
+    if ((res.status === 429 || res.status === 502 || res.status === 503) && attempt < 4) {
+      const retryAfter = Number(res.headers.get("retry-after"));
+      await new Promise((r) => setTimeout(r, retryAfter > 0 ? retryAfter * 1000 : Math.min(30_000, 3_000 * 2 ** attempt)));
+      continue;
+    }
+    return res;
+  }
+}
+
+/**
+ * The JSON object in a model reply. Not every gateway route enforces `response_format`, so this accepts a bare
+ * object, a ```json fenced block, or an object surrounded by prose (first "{" to its matching last "}").
+ */
+export function parseJsonContent(content: string): unknown {
+  const text = content.trim();
+  try {
+    return JSON.parse(text);
+  } catch {}
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1].trim());
+    } catch {}
+  }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1));
+  throw new SyntaxError("no JSON object in the reply");
+}
+
+/** Appended to the system prompt whenever a schema is requested, so routes that ignore response_format still comply. */
+const schemaInstruction = (schema: JsonSchema) =>
+  `\n\nOutput format: reply with ONLY one JSON object (no prose, no markdown fence) that conforms to this JSON Schema:\n${JSON.stringify(schema.schema)}`;
+
 async function openRouterCall(model: string, messages: ChatMessage[], maxTokens: number, schema?: JsonSchema) {
   const apiKey = aiApiKey();
   if (!apiKey) throw new Error("AI_API_KEY is not set (no model provider configured); see .env.example");
 
-  const res = await fetch(`${aiBaseUrl()}/chat/completions`, {
+  const res = await postWithRetry(`${aiBaseUrl()}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -148,13 +186,13 @@ export function createComplete(role: AgentName, config: HarnessConfig): Complete
       config,
       schema,
       messages: [
-        { role: "system", content: system },
+        { role: "system", content: system + schemaInstruction(schema) },
         { role: "user", content: user },
       ],
     });
     complete.lastUsage = result;
     try {
-      return JSON.parse(result.content);
+      return parseJsonContent(result.content);
     } catch (cause) {
       throw new Error(`${role} model returned non-JSON content: ${result.content.slice(0, 200)}`, { cause });
     }

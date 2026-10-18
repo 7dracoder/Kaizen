@@ -5,7 +5,8 @@
 // scoring, not necessarily the current kept one.
 import { createHash, randomUUID } from "node:crypto";
 import type { BoardMetrics, HarnessConfig, RunResult, Spec } from "@kaizen/types";
-import { retrieveLessons, retrieveSubcircuits, addLesson, addSubcircuit, markLessonsHelped, markSubcircuitsReused, indexFailure } from "../harness/memory.js";
+import { graphContext, riskNote } from "../harness/graph-context.js";
+import { addLesson, addSubcircuit, markLessonsHelped, markSubcircuitsReused, indexFailure } from "../harness/memory.js";
 import { col } from "../db.js";
 import { createComplete } from "../tools/router.js";
 import { computeMetrics, MetricsError, type CircuitMetrics } from "../tools/metrics.js";
@@ -151,9 +152,32 @@ export async function runBoard(specId: string, config: HarnessConfig, opts: RunB
   const expected = opts.expectedFor ? undefined : checks.loadExpected(specId);
   const completeCritic = createComplete("critic", config);
 
-  const [lessons, subcircuits] = useMemory
-    ? await Promise.all([retrieveLessons(spec.text, config.context), retrieveSubcircuits(spec.text, config.context)])
-    : [[], []];
+  // The coder's context comes from the graph: lessons proven on this spec, lessons learned from the checks this spec
+  // tends to fail, subcircuits reused by passing builds, then vector matches (harness/graph-context.ts).
+  const memory = useMemory ? await graphContext(spec, config.context) : null;
+  const lessons = memory?.lessons ?? [];
+  const subcircuits = memory?.subcircuits ?? [];
+  const coderSpecText = spec.text + (memory ? riskNote(memory) : "");
+  if (memory && opts.boardId !== undefined) {
+    // One record of what the graph decided, before any attempt: the "why" view and the demo read it.
+    await col.runs.replaceOne(
+      { _id: `${boardId}_0_memory` },
+      {
+        board_id: boardId,
+        harness_version: config.version,
+        stage: "memory",
+        passed: false, // not an attempt: never counts toward a board passing (gate.ts rollUp)
+        failures: [],
+        drc_errors: 0,
+        ts: new Date().toISOString(),
+        spec_id: specId,
+        lessons_used: lessons.map((l) => l._id),
+        subcircuits_used: subcircuits.map((s) => s._id),
+        memory: { risky_checks: memory.riskyChecks, picks: memory.picks, queries: memory.queries },
+      },
+      { upsert: true },
+    );
+  }
 
   // A rerun under the same board id starts over: no earlier run is the kept one any more.
   if (opts.boardId) await col.runs.updateMany({ board_id: boardId, final: true }, { $unset: { final: "" } });
@@ -235,7 +259,7 @@ export async function runBoard(specId: string, config: HarnessConfig, opts: RunB
     let checkScore = 0;
     try {
       coderResult = await runCoder({
-        specText: spec.text,
+        specText: coderSpecText,
         config,
         lessons,
         subcircuits,
@@ -361,7 +385,7 @@ export async function runBoard(specId: string, config: HarnessConfig, opts: RunB
       let run: RunResult;
       let score = 0;
       try {
-        const coded = await runCoder({ specText: spec.text, config, lessons, subcircuits, previousSource: pinned, improvements: review.edits });
+        const coded = await runCoder({ specText: coderSpecText, config, lessons, subcircuits, previousSource: pinned, improvements: review.edits });
         // The critic places the parts; the board is sized to wrap them (tools/board-outline.ts) and rendered again.
         const fitted = fitBoardToParts(coded.source, coded.circuitJson);
         try {

@@ -62,7 +62,7 @@ export default function Landing() {
           <AccountWidgetClient />
           <Link
             href="/board"
-            className="hidden rounded-md bg-accent px-4 py-1.5 text-[13px] font-semibold text-[#06121f] hover:opacity-90 sm:inline-block"
+            className="hidden rounded-md bg-accent px-4 py-1.5 text-[13px] font-semibold text-accent-contrast hover:opacity-90 sm:inline-block"
           >
             Start a build →
           </Link>
@@ -84,7 +84,7 @@ export default function Landing() {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link
                 href="/board"
-                className="rounded-md bg-accent px-5 py-2.5 text-[14px] font-semibold text-[#06121f] hover:opacity-90"
+                className="rounded-md bg-accent px-5 py-2.5 text-[14px] font-semibold text-accent-contrast hover:opacity-90"
               >
                 Start a build →
               </Link>

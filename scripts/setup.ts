@@ -33,12 +33,14 @@ const agents = [
   ["meta", "Proposes harness config changes from batch results"],
   ["assembler", "Combines finished subcircuits into one board"],
   ["library", "Serves a verified design from memory instead of redesigning"],
+  ["memory", "Graph traversals that choose the coder's lessons and subcircuits"],
 ];
 await cypher(`UNWIND $agents AS a MERGE (n:Agent {name: a[0]}) SET n.role = a[1]`, { agents });
 await cypher(
   `MATCH (p:Agent {name: 'planner'}), (c:Agent {name: 'coder'}), (k:Agent {name: 'checker'}), (cr:Agent {name: 'critic'}), (m:Agent {name: 'meta'}), (a:Agent {name: 'assembler'})
    MERGE (p)-[:HANDS_OFF_TO]->(c) MERGE (c)-[:HANDS_OFF_TO]->(k) MERGE (k)-[:HANDS_OFF_TO]->(cr) MERGE (cr)-[:HANDS_OFF_TO]->(c)
-   MERGE (k)-[:HANDS_OFF_TO]->(a) MERGE (k)-[:HANDS_OFF_TO]->(m) MERGE (m)-[:HANDS_OFF_TO]->(p)`,
+   MERGE (k)-[:HANDS_OFF_TO]->(a) MERGE (k)-[:HANDS_OFF_TO]->(m) MERGE (m)-[:HANDS_OFF_TO]->(p)
+   WITH c, cr MATCH (g:Agent {name: 'memory'}) MERGE (g)-[:HANDS_OFF_TO]->(c) MERGE (cr)-[:HANDS_OFF_TO]->(g)`,
 );
 console.log(`agents: ${agents.length}, with their handoff topology`);
 

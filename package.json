@@ -38,7 +38,8 @@
     "db": "node scripts/falkordb-server.mjs",
     "dev": "npm run dev -w @kaizen/web",
     "test:graph": "tsx --test packages/graph/src/graph.test.ts apps/worker/src/harness/coordination.test.ts",
-    "test": "npm run test:checks && npm run test:assembler && npm run test:gate && npm run test:critic && npm run test:planner && npm run test:export && npm run test:meta && npm run test:graph"
+    "test": "npm run test:checks && npm run test:assembler && npm run test:gate && npm run test:critic && npm run test:planner && npm run test:export && npm run test:meta && npm run test:router && npm run test:graph",
+    "test:router": "tsx --test apps/worker/src/tools/router.test.ts"
   },
   "devDependencies": {
     "@resvg/resvg-js": "2.6.2",

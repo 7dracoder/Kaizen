@@ -32,6 +32,7 @@ export const STAGE_AGENT: Record<string, string> = {
   final: "assembler",
   meta: "meta",
   plan: "planner",
+  memory: "memory",
   error: "worker",
 };
 

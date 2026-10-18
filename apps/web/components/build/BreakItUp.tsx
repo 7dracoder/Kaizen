@@ -98,7 +98,7 @@ export function BreakItUp({
                   type="button"
                   disabled={disabled}
                   onClick={() => onRebuildBlock(block)}
-                  className="mt-2 rounded-md bg-accent px-3 py-1 text-[12px] font-semibold text-[#06121f] hover:opacity-90 disabled:opacity-40"
+                  className="mt-2 rounded-md bg-accent px-3 py-1 text-[12px] font-semibold text-accent-contrast hover:opacity-90 disabled:opacity-40"
                 >
                   Rebuild this block →
                 </button>

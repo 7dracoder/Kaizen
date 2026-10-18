@@ -63,6 +63,17 @@ await check("strong", async () => {
   return `${model} replied "${String(res.choices?.[0]?.message?.content ?? "").trim().slice(0, 20)}"`;
 });
 
+await check("embed", async () => {
+  const key = aiApiKey();
+  const model = process.env.EMBED_MODEL;
+  if (!key || !model) return skip("EMBED_MODEL not set (memory uses Voyage directly or the local embedder)");
+  const res = await post(`${aiBaseUrl()}/embeddings`, key, { model, input: ["I2C lines need pull-up resistors"] });
+  const len = res.data?.[0]?.embedding?.length ?? 0;
+  const dims = Number(process.env.EMBEDDING_DIMS || 1024);
+  if (len !== dims) throw new Error(`${model} returned ${len} dims but the vector indexes expect ${dims}`);
+  return `${model} via ${new URL(aiBaseUrl()).host}: ${len} dims`;
+});
+
 await check("voyage", async () => {
   const key = process.env.VOYAGE_API_KEY;
   if (!key) return skip("VOYAGE_API_KEY not set; memory uses the local hashing embedder (lower recall)");
