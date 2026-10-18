@@ -138,13 +138,13 @@ export function PCBComponentMesh({
         />
       </mesh>
 
-      {showLabel ? (
-        <Html
+      {/* Always mounted and only hidden: mounting <Html> on hover creates a React root mid-render. */}
+      <Html
           position={[0, restY + depth / 2 + 0.46, 0]}
           center
           distanceFactor={13}
           zIndexRange={[10, 0]}
-          style={{ pointerEvents: "none" }}
+          style={{ pointerEvents: "none", visibility: showLabel ? "visible" : "hidden" }}
         >
           <div className="whitespace-nowrap text-center font-mono leading-none">
             {/* Reference designator carries the weight; the part name is
@@ -165,7 +165,6 @@ export function PCBComponentMesh({
             </div>
           </div>
         </Html>
-      ) : null}
 
       {/* Fault annotation, anchored to the part it is about. This is the link
           between the critic's sentence and the object on the board. */}

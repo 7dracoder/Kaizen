@@ -40,7 +40,7 @@ export function Telemetry({ metrics }: { metrics: DesignMetrics }) {
         label="board"
         value={`${metrics.boardWidthMm}×${metrics.boardHeightMm}mm`}
       />
-      <Stat label="bom" value={`$${metrics.bomUsd.toFixed(2)}`} />
+      {metrics.bomUsd > 0 ? <Stat label="bom" value={`$${metrics.bomUsd.toFixed(2)}`} /> : null}
     </div>
   );
 }
