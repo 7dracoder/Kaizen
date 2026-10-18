@@ -4,7 +4,7 @@
 // paths decided what the coder was given. Polls every 2 s; new nodes animate in, existing ones keep their place.
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowsClockwise, Graph, Lightning, MagnifyingGlass, Play } from "@phosphor-icons/react";
+import { ArrowsClockwise, Graph, MagnifyingGlass, Play } from "@phosphor-icons/react";
 
 import { AppHeader, PAGE_COLUMN } from "@/components/AppHeader";
 import { getJson, usePolling } from "@/lib/usePolling";
@@ -59,6 +59,15 @@ function Panel({ title, icon, note, children }: { title: string; icon?: ReactNod
       </div>
       <div className="mt-3">{children}</div>
     </section>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-1.5 text-[12px] font-medium text-dim">{title}</h3>
+      {children}
+    </div>
   );
 }
 
@@ -260,73 +269,69 @@ export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: Re
               </p>
             </Panel>
           ) : (
-            <Panel title="How the graph decided" icon={<Lightning size={15} weight="bold" />} note="before the coder wrote a line">
+            <Panel title="How the graph decided" note="before the coder wrote a line">
               {memoryRecord ? (
-                <div className="space-y-4 text-[12px]">
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">Risky checks for this spec</div>
+                <div className="space-y-5 text-[12px]">
+                  <Section title="Checks this kind of board fails">
                     {memoryRecord.risky_checks.length ? (
-                      <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                      <ul className="divide-y divide-line-soft">
                         {memoryRecord.risky_checks.map((r) => (
-                          <li key={r.check} className="rounded-full px-2 py-0.5 font-mono text-[11px]" style={{ background: `${LABEL_COLORS.Check}22`, color: LABEL_COLORS.Check }}>
-                            {r.check} ×{r.times}
+                          <li key={r.check} className="flex items-baseline justify-between py-1">
+                            <span className="font-mono text-ink">{r.check}</span>
+                            <span className="tabular-nums text-faint">
+                              failed {r.times} time{r.times === 1 ? "" : "s"}
+                            </span>
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="mt-1 text-faint">None yet: the graph had no failures to learn from.</p>
+                      <p className="text-faint">None yet: the graph had no failures to learn from.</p>
                     )}
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">Lessons handed to the coder</div>
+                  </Section>
+                  <Section title="Lessons given to the coder">
                     {memoryRecord.picks.lessons.length ? (
-                      <ol className="mt-1.5 space-y-2">
+                      <ol className="list-decimal space-y-2.5 pl-4 marker:text-faint">
                         {memoryRecord.picks.lessons.map((p) => (
-                          <li key={p.id} className="rounded-[var(--radius-control)] p-2" style={{ border: "1px solid var(--border)" }}>
-                            <div className="flex items-center gap-2">
-                              <span className="rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold" style={p.via === "graph" ? { background: `${LABEL_COLORS.Lesson}26`, color: LABEL_COLORS.Lesson } : { background: "var(--border)", color: "var(--text-secondary)" }}>
-                                {p.via === "graph" ? "graph path" : "vector"}
-                              </span>
-                              <span className="text-ink">{lessonById.get(p.id)?.pattern ?? p.id}</span>
-                            </div>
-                            <p className="mt-1 text-faint">{p.why}</p>
+                          <li key={p.id}>
+                            <p className="text-ink">{lessonById.get(p.id)?.pattern ?? p.id}</p>
+                            <p className="mt-0.5 text-faint">
+                              {p.via === "graph" ? "Picked by graph path: " : "Picked by vector search: "}
+                              {p.why}
+                            </p>
                           </li>
                         ))}
                       </ol>
                     ) : (
-                      <p className="mt-1 text-faint">No lessons in memory yet. This build starts from scratch; whatever the critic learns from it is saved for the next one.</p>
+                      <p className="text-faint">No lessons in memory yet. This build starts from scratch; whatever the critic learns from it is saved for the next one.</p>
                     )}
-                  </div>
+                  </Section>
                   {memoryRecord.picks.subcircuits.length ? (
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">Subcircuits offered for reuse</div>
-                      <ul className="mt-1.5 space-y-1">
+                    <Section title="Subcircuits offered for reuse">
+                      <ul className="space-y-1">
                         {memoryRecord.picks.subcircuits.map((p) => (
                           <li key={p.id} className="text-dim">
-                            <span className="font-mono text-ink">{p.id}</span> · {p.why}
+                            <span className="font-mono text-ink">{p.id}</span>, {p.why}
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </Section>
                   ) : null}
                   {savedLessons.length ? (
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">Lessons this build wrote back</div>
-                      <ul className="mt-1.5 space-y-1">
+                    <Section title="Lessons this build wrote back">
+                      <ul className="space-y-1">
                         {savedLessons.map((id) => (
                           <li key={id} className="text-dim">{lessonById.get(id)?.pattern ?? id}</li>
                         ))}
                       </ul>
-                    </div>
+                    </Section>
                   ) : null}
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">Cypher the agent ran</div>
-                    <ul className="mt-1.5 space-y-3">
+                  <Section title="Queries it ran">
+                    <ul className="space-y-3">
                       {memoryRecord.queries.map((q, i) => (
                         <Cypher key={i} q={q} />
                       ))}
                     </ul>
-                  </div>
+                  </Section>
                 </div>
               ) : !buildRuns ? (
                 <p className="text-[12px] text-faint">Reading this build&apos;s memory record from FalkorDB…</p>

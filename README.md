@@ -44,27 +44,31 @@ Most first-run PCBs get respun for the same handful of mistakes: missing I2C pul
 ```mermaid
 flowchart LR
   subgraph Web["apps/web (Next.js)"]
-    UI[Board / Harness / Memory / System pages]
-    API[API routes]
+    UI["Board, Harness, Memory, System pages"]
+    API["API routes"]
   end
-  subgraph Worker["apps/worker (Node)"]
-    P[Planner] --> C[Coder] --> K[Checker + DRC] --> CR[Critic]
+  subgraph Wk["apps/worker (Node)"]
+    P["Planner"] --> C["Coder"] --> K["Checker + DRC"] --> CR["Critic"]
     CR --> C
-    K --> A[Assembler]
-    K --> M[Meta-agent] --> G[Config gate]
-    Q[Durable work queue]
+    K --> A["Assembler"]
+    K --> M["Meta-agent"] --> G["Config gate"]
+    Q["Durable work queue"]
   end
   subgraph F["FalkorDB"]
-    S[(Shared graph "kaizen": memory, runs, configs, queue, requests)]
-    U[(One graph per user: conversation history)]
+    S[("Shared graph kaizen: memory, runs, configs, queue, requests")]
+    U[("One graph per user: conversation history")]
   end
-  UI --> API -->|read + Request nodes| S
-  API -->|pub/sub wake-up| Worker
+  UI --> API
+  API -->|"read + Request nodes"| S
+  API -->|"pub/sub wake-up"| Wk
   API --> U
-  Worker <-->|Cypher, vector search, atomic claims| S
-  Worker --> U
-  C & CR & P & M --> LLM[OpenAI-compatible model API]
-  Worker -.optional.-> V[Voyage embeddings + rerank]
+  Wk <-->|"Cypher, vector search, atomic claims"| S
+  Wk --> U
+  P --> LLM["OpenAI-compatible model API"]
+  C --> LLM
+  CR --> LLM
+  M --> LLM
+  Wk -.->|optional| V["Voyage embeddings + rerank"]
 ```
 
 ## The graph (FalkorDB is where the decisions come from)
