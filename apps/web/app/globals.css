@@ -229,6 +229,13 @@ body {
   overscroll-behavior: none;
 }
 
+/* The whatspoppin canvas: a faint dot grid behind tool surfaces. */
+.dot-grid {
+  background-color: var(--void);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--grid-dot) 55%, transparent) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
 /* Trace entries arrive from below, the way a log grows. */
 @keyframes trace-in {
   from {

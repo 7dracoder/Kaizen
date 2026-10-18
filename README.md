@@ -6,6 +6,10 @@ Kaizen turns a sentence like *"USB-C powered temperature sensor with a status LE
 
 ![Landing page](docs/screenshots/landing.png)
 
+**Demo video:** _link added on submission_ · Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 02 (Agent Memory and Coordination).
+
+**FalkorDB is the only database.** It holds the agents' memory (episodic, semantic, procedural), their shared work queue, the request inbox, user accounts and one private graph per user. Take FalkorDB away and the agents have nothing to read, nothing to claim and nothing to remember.
+
 ## The problem
 
 Most first-run PCBs get respun for the same handful of mistakes: missing I2C pull-ups, no decoupling capacitor next to a chip, an unconnected pin, a routing error. LLMs can write board code, but on their own they make those mistakes again and again. They have no memory of what failed last time, no way to check their own work against the requirements, and no record of *why* they made a choice.
@@ -127,6 +131,45 @@ SET w.status = 'running', w.claimed_by = $worker, w.heartbeat = $t, w.attempts =
 MERGE (k:Worker {id: $worker}) MERGE (w)-[:CLAIMED_BY]->(k)
 RETURN properties(w)
 ```
+
+### Where each decision comes from
+
+| Decision an agent makes | Where it comes from in the graph | Code |
+|---|---|---|
+| Which design rules (lessons) the coder is told | Queries 2 and 3: lessons linked by `LEARNED_FROM` to builds that failed the risky checks, plus lessons with `USED_LESSON` edges from passing runs. Vector search only fills the leftover slots | `apps/worker/src/harness/graph-context.ts` |
+| Which checks the spec warns about | Query 1: `FAILED_CHECK` counts for this spec, or across all builds for a new spec | `riskNote()` in the same file |
+| Which verified subcircuit to reuse | Query 4: `REUSED` edges from passing runs of the same spec | same file |
+| Which step a worker does next | One atomic claim on `WorkItem` nodes whose `DEPENDS_ON` steps are done | `apps/worker/src/harness/queue.ts` |
+| Which board request a worker takes | Atomic claim on `Request` nodes, woken by FalkorDB pub/sub | `apps/worker/src/harness/requests.ts` |
+| Which harness version runs, and whether a change stays | The current `Config` node and its `CHILD_OF` lineage; the gate writes keep/rollback back to it | `apps/worker/src/harness/gate.ts` |
+
+### A real run: the graph fixing a mistake the model kept making
+
+These are two real builds from this machine (GPT-4o-mini coder, Claude Sonnet 4.6 critic), read straight back out of FalkorDB.
+
+**Build 1:** `t04_i2c_temp_breakout`. The memory was empty. The first attempt failed `pullups` and `tied` (floating I2C address pins) plus `decoupling`. The critic diagnosed it and wrote two `Lesson` nodes, each with a `LEARNED_FROM` edge to this build:
+
+- *"Any I2C bus with an external header exposing SDA and SCL"* → add 4.7 kΩ pull-ups from SDA and SCL to 3.3 V
+- *"Any I2C device with address-select pins (A0, A1, A2)"* → tie every address pin to VCC or GND
+
+The second attempt passed every hidden check.
+
+**Build 2:** a new free-text spec, *"USB-C powered I2C temperature sensor breakout with a status LED"*. The graph had never seen this spec, so query 1 returned nothing and Kaizen fell back to the most-failed checks overall. This is the record it stored on the build's `Run {stage: "memory"}` node:
+
+```json
+{
+  "risky_checks": [ { "check": "pullups", "times": 2 }, { "check": "decoupling", "times": 2 }, { "check": "tied", "times": 2 } ],
+  "picks": {
+    "lessons": [
+      { "id": "lesson_7773f765a0ee", "via": "graph",  "why": "learned from 1 build(s) that failed tied, decoupling, pullups" },
+      { "id": "lesson_31226e95128e", "via": "graph",  "why": "learned from 1 build(s) that failed tied, decoupling, pullups" }
+    ],
+    "subcircuits": [ { "id": "sub_a243de72a4bd", "via": "vector", "why": "similar to the spec (score 0.88)" } ]
+  }
+}
+```
+
+Both lessons were chosen by **graph path**, not by text similarity. Result: across all 5 attempts, `pullups` and `tied` never failed again. `decoupling` failed every time, because no lesson for it had been written yet. That's the honest picture: the graph fixed the class of mistake it had evidence about, and only that one.
 
 **See it live:** open `/graph`, type a board and press **Build and watch**. Nodes arrive as the agents write them, the lessons the graph chose are ringed, and the side panel lists the exact Cypher, row counts and the reason for every pick. The panel also lists every query behind the view.
 

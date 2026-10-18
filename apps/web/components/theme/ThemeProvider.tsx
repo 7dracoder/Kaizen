@@ -1,7 +1,7 @@
 "use client";
 
 // Theme and light/dark mode, ported from the whatspoppin design system: five themes sharing one set of token names
-// (globals.css), switched with [data-theme] and [data-mode] on <html>. The server renders the default (dark Soft
+// (globals.css), switched with [data-theme] and [data-mode] on <html>. The server renders the default (light Soft
 // Pixel); a stored choice from localStorage is applied right after mount.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -18,7 +18,7 @@ export type ThemeMode = "light" | "dark";
 export const STORAGE_KEY_THEME = "kaizen.theme";
 export const STORAGE_KEY_MODE = "kaizen.mode";
 export const DEFAULT_THEME: ThemeId = "soft-pixel-finance";
-export const DEFAULT_MODE: ThemeMode = "dark";
+export const DEFAULT_MODE: ThemeMode = "light";
 
 interface ThemeContextValue {
   theme: ThemeId;

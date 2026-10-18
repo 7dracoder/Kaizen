@@ -4,7 +4,7 @@
 // paths decided what the coder was given. Polls every 2 s; new nodes animate in, existing ones keep their place.
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowsClockwise, Graph, Lightning, MagnifyingGlass, Play } from "@phosphor-icons/react";
 
 import { NavTabs } from "@/components/NavTabs";
@@ -80,11 +80,11 @@ function Cypher({ q }: { q: { purpose: string; cypher: string; rows: number; ms:
   );
 }
 
-export function GraphExplorer({ accountSlot }: { accountSlot?: ReactNode } = {}) {
+export function GraphExplorer({ accountSlot, initialPrompt }: { accountSlot?: ReactNode; initialPrompt?: string } = {}) {
   const [target, setTarget] = useState<string>(OVERVIEW);
   const [follow, setFollow] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("USB-C powered I2C temperature sensor breakout with a status LED");
+  const [prompt, setPrompt] = useState(initialPrompt ?? "USB-C powered I2C temperature sensor breakout with a status LED");
   const [buildNote, setBuildNote] = useState<string | null>(null);
   const [pendingRequest, setPendingRequest] = useState<string | null>(null);
 
@@ -155,6 +155,14 @@ export function GraphExplorer({ accountSlot }: { accountSlot?: ReactNode } = {})
     setPendingRequest(json.request_id);
     setBuildNote("Queued: the worker picks it up through FalkorDB pub/sub…");
   };
+
+  // Arriving from the landing prompt (/graph?q=…): start that build once.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoStarted.current || !initialPrompt || initialPrompt.trim().length < 10) return;
+    autoStarted.current = true;
+    void startBuild();
+  }, [initialPrompt]);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col px-6">
