@@ -229,66 +229,132 @@ scripts/           setup, worker, finale, evolve, ablation, local FalkorDB launc
 
 ## Run it locally
 
-Needs Node 22.13+ and `redis-server` (macOS: `brew install redis`). The FalkorDB module is downloaded automatically during install. Docker works too: `docker run -p 6379:6379 falkordb/falkordb`.
+Everything runs on one machine: FalkorDB, the web app and the worker. The web app never calls a model. It writes a `Request` node to FalkorDB, the worker picks it up, runs the agents and writes every attempt back to the graph, and the web app reads it from there.
+
+### 1. Prerequisites
+
+- **Node.js 22.13 or newer** (`node -v` to check)
+- **FalkorDB**, in one of two ways:
+  - **Without Docker (recommended):** install `redis-server` (macOS: `brew install redis`, Linux: `sudo apt install redis-server`). `npm run db` loads the official FalkorDB module into it; the module is downloaded by the `falkordblite` package during `npm install`.
+  - **With Docker:** `docker run -p 6379:6379 -v kaizen-falkordb:/data falkordb/falkordb`
+- **An OpenAI-compatible model API key** (Nicrron, OpenRouter or similar). Only needed to design real boards; everything else works without it.
+- Optional: `redis-cli` (comes with Redis) to run Cypher against the graph yourself.
+
+### 2. Install
 
 ```bash
-npm install                                   # also builds packages/graph and packages/types
-cp .env.example .env && cp .env.example apps/web/.env.local
-npm run db                                    # terminal 1: FalkorDB on :6379, data in .data/
-npm run setup                                 # once: indexes, vector indexes, config v0, specs, agents
-npm run dev                                   # terminal 2: http://localhost:3000
-npm run worker                                # terminal 3: serves builds from the web app
+git clone https://github.com/7dracoder/Kaizen.git
+cd Kaizen
+npm install          # installs every workspace and builds packages/graph and packages/types
 ```
 
-With no keys at all you can still run the stand-in 20-part board through the queue and open it in 3D, the memory graph, the system and harness views, and every test. Real board design needs `AI_API_KEY`.
+### 3. Configure
 
 ```bash
-npm run finale -- --stub --reset              # free: planner + coder stand-ins, real checks, real queue
-npm run green                                 # one real call per configured service
+cp .env.example .env                  # used by the worker and the scripts
+cp .env.example apps/web/.env.local   # used by the web app
 ```
 
-## Deploy it
-
-A deployment has three parts, and all of them talk only to FalkorDB:
-
-| Part | Where | Why there |
-|---|---|---|
-| FalkorDB | [FalkorDB Cloud](https://app.falkordb.cloud) or the `falkordb/falkordb` Docker image | the only database: memory, queue, requests, wake-ups |
-| Web app (`apps/web`) | Vercel | plain Next.js; every API route reads FalkorDB |
-| Worker (`npm run worker`) | any always-on Node host: Railway, Render, Fly.io, a VM | runs the agents; builds take minutes, so it can't be a serverless function |
-
-The web app never calls a model. It writes a `Request` node and publishes on a FalkorDB channel. The worker picks the request up, runs the agents and writes everything back to the graph, and the web app reads it from there. If the host blocks pub/sub, the worker falls back to polling every 10 seconds.
-
-**1. FalkorDB.** Create a free instance on FalkorDB Cloud and copy its connection details into one URL: `redis://default:<password>@<host>:<port>`. To self-host instead, run `falkordb/falkordb` with port 6379 and a persistent volume on `/data`. Then create the indexes, config, specs and agent nodes once, from your machine:
+Both files are gitignored. The defaults already point at a local FalkorDB (`FALKORDB_URL=redis://127.0.0.1:6379`, graph `kaizen`). To design boards, fill these in `.env`:
 
 ```bash
-FALKORDB_URL='redis://default:<password>@<host>:<port>' npm run setup
+AI_BASE_URL=https://api.nicrron.ai/v1        # or https://openrouter.ai/api/v1
+AI_API_KEY=<your key>
+MODEL_CHEAP=openai/gpt-4o-mini               # the coder
+MODEL_STRONG=anthropic/claude-sonnet-4-6     # planner and critic
+EMBED_MODEL=voyage/voyage-4                  # optional: better lesson recall
 ```
 
-**2. Web app on Vercel.** Import the GitHub repo, then set:
+Leave the `AUTH_*` variables empty to run in anonymous mode (no sign-in). See [API keys](#api-keys) for what each one unlocks.
 
-- Root Directory: `apps/web` (keep "Include files outside the root directory" on, since the app imports `packages/graph`).
-- Framework: Next.js. Node.js version: 22.x.
-- Install Command: `cd ../.. && npm install`. This installs the workspaces and builds `packages/graph` and `packages/types`.
-- Build Command: `next build` (the default).
-- Environment variables: `FALKORDB_URL` and `FALKORDB_GRAPH=kaizen`. For sign-in, also add `AUTH_SECRET`, `AUTH_URL=https://<your-domain>`, and either `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` (redirect URI `https://<your-domain>/api/auth/callback/google`) or `AUTH_RESEND_KEY` and `EMAIL_FROM`. Leave the auth variables out to run in anonymous mode.
-
-Deploy, then open `https://<your-domain>/api/health`. It should report FalkorDB as connected, with the counts written by `npm run setup`.
-
-**3. Worker.** On Railway or Render, create a service from the same repo (Render: a Background Worker) with:
-
-- Build command: `npm install`
-- Start command: `npm run worker`
-- Node 22.13 or newer
-- Environment variables: the same `FALKORDB_URL` and `FALKORDB_GRAPH`, plus `AI_API_KEY`, `AI_BASE_URL`, `MODEL_CHEAP` and `MODEL_STRONG`. `EMBED_MODEL` or `VOYAGE_API_KEY` is optional (see [API keys](#api-keys)). `WORKER_CONCURRENCY` defaults to 3.
-
-On a VM, the same thing is `git clone`, `npm install`, a `.env` file, and `npm run worker` under systemd or `pm2`. Its log should print `waiting for spec requests`. Restarts are safe: an interrupted request resumes where it stopped.
-
-**Check it end to end.** On the deployed site, open `/graph`, type a board and press "Build and watch". The worker log should show the request within a few seconds. The page then shows the lessons the graph picked, each attempt, and the hidden-check results as they land. The same records are in your FalkorDB instance:
+### 4. Start FalkorDB (terminal 1)
 
 ```bash
-redis-cli -u "$FALKORDB_URL" GRAPH.QUERY kaizen "MATCH (q:Request) RETURN q.status, count(q)"
+npm run db
 ```
+
+It prints `FalkorDB on 127.0.0.1:6379, data in .data/falkordb` and keeps running. Data is persisted, so the graph's memory survives restarts. Skip this if you started the Docker image.
+
+### 5. Create the graph (once)
+
+```bash
+npm run setup
+```
+
+This creates the indexes, unique-id constraints and vector indexes, harness config v0, the public specs, and the agents as `Agent` nodes. It is safe to run again. Check it:
+
+```bash
+redis-cli GRAPH.QUERY kaizen "MATCH (n) RETURN labels(n)[0] AS label, count(n) ORDER BY label"
+```
+
+### 6. Start the web app (terminal 2)
+
+```bash
+npm run dev
+```
+
+Open http://localhost:3000. The **System** tab should show FalkorDB as "Connected"; http://localhost:3000/api/health reports the connection and the record counts.
+
+### 7. Start the worker (terminal 3)
+
+```bash
+npm run worker
+```
+
+It prints `waiting for spec requests (concurrency 3)`. It is safe to stop and restart: an interrupted request resumes where it stopped.
+
+### 8. Build a board
+
+1. On the **Board** tab, pick one of the examples under the prompt (or type your own) and press **Build →**.
+2. The worker log shows the request within a few seconds. A build takes one to three minutes.
+3. Switch tabs while it runs; they all follow the same board:
+   - **Graph**: the lessons the graph picked for this build and why (graph path or vector search), and the risky checks.
+   - **Board**: the 3D board as each attempt lands, and the hidden-check result.
+   - **Harness**: every stage, model, token count and cost.
+   - **Memory**: this build's neighbourhood in the graph: runs, failed checks, lessons used and where they were learned.
+
+You can also start a build from the **Graph** tab: type a board and press **Build and watch**.
+
+### 9. Look at the graph directly
+
+```bash
+# requests by status
+redis-cli GRAPH.QUERY kaizen "MATCH (q:Request) RETURN q.status, count(q)"
+
+# every attempt of one board and the checks it failed (board id from the Board tab)
+redis-cli GRAPH.QUERY kaizen "MATCH (r:Run {board_id:'<board id>'}) OPTIONAL MATCH (r)-[:FAILED_CHECK]->(k:Check) WITH r, collect(k.name) AS failed RETURN r.stage, r.passed, failed, r.ts ORDER BY r.ts"
+```
+
+### 10. Teach it and review what it learned
+
+Free-text builds from the web app use lessons but never write them. Lessons come from training specs, run from the CLI:
+
+```bash
+npm run board -- t04_i2c_temp_breakout               # run one training spec; the critic stores lessons
+npm run board -- t04_i2c_temp_breakout --no-memory   # same spec as if memory were empty
+npm run lessons                                      # list every lesson
+npm run lessons -- retire <id> "<why>"               # stop using a bad lesson (kept, marked inactive)
+npm run lessons -- restore <id>                      # use it again
+```
+
+Training specs are in `specs/specs.json` (`t01_led_indicator` to `t08_i2c_two_devices`, and more).
+
+### Without an API key
+
+You can still run the stand-in 20-part board through the real queue and checks, open it in 3D, and browse the memory graph, the system and harness views, and every test:
+
+```bash
+npm run finale -- --stub --reset   # free: planner and coder stand-ins, real checks, real queue
+npm run green                      # with keys: one real call per configured service
+```
+
+### Troubleshooting
+
+- **`redis-server not found`**: install Redis (step 1), or use the Docker image.
+- **Pages say "Disconnected"**: FalkorDB isn't running, or `FALKORDB_URL` in `apps/web/.env.local` is wrong.
+- **A build stays "queued"**: the worker isn't running (step 7).
+- **A build fails with a model error**: check `AI_API_KEY`, `AI_BASE_URL` and the model names in `.env`, then run `npm run green`.
+- **Port 6379 is taken**: `FALKORDB_PORT=6380 npm run db`, and set `FALKORDB_URL=redis://127.0.0.1:6380` in both env files.
 
 ## API keys
 
