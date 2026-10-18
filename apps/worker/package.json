@@ -1,0 +1,12 @@
+{
+  "name": "@kaizen/worker",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@kaizen/types": "*",
+    "langsmith": "0.10.5",
+    "tscircuit": "0.0.2646",
+    "zod": "3.25.76",
+    "@kaizen/graph": "*"
+  }
+}
