@@ -1,5 +1,12 @@
 "use client";
 
+const EXAMPLES = [
+  "3.3V I2C pressure sensor breakout with a power LED",
+  "I2C light sensor on a 4-pin header, USB-C powered",
+  "I2C accelerometer board with a status LED",
+  "Three LEDs with resistors from a 5V header",
+];
+
 /**
  * Before a run: the specification is the input. After one: it is a caption,
  * and the action becomes plain text rather than a button shape. The input
@@ -48,34 +55,51 @@ export function SpecificationBar({
   }
 
   return (
-    <form
-      className="flex items-center gap-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!isRunning && !building) onBuild();
-      }}
-    >
-      <label htmlFor="spec" className="sr-only">
-        What should Kaizen build?
-      </label>
-      <input
-        id="spec"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        readOnly={building}
-        placeholder="Describe a board…"
-        className="min-w-0 flex-1 rounded-md border border-line-soft bg-raised px-4 py-2.5 text-[14px] text-ink shadow-[0_0_0_1px_rgba(78,201,224,0.08)] placeholder:text-faint focus:border-accent focus:shadow-[0_0_0_3px_rgba(78,201,224,0.18)] focus:outline-none"
-      />
-      <button
-        type="submit"
-        disabled={building || value.trim().length === 0}
-        aria-busy={building}
-        className={`shrink-0 rounded-md bg-accent px-5 py-2.5 text-[14px] font-semibold text-accent-contrast ${
-          building ? "breathe cursor-progress" : "hover:opacity-90 disabled:opacity-40"
-        }`}
+    <div>
+      <form
+        className="flex items-center gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!isRunning && !building) onBuild();
+        }}
       >
-        {building ? "Building…" : "Build →"}
-      </button>
-    </form>
+        <label htmlFor="spec" className="sr-only">
+          What should Kaizen build?
+        </label>
+        <input
+          id="spec"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          readOnly={building}
+          placeholder="Describe a board…"
+          className="min-w-0 flex-1 rounded-md border border-line-soft bg-raised px-4 py-2.5 text-[14px] text-ink shadow-[0_0_0_1px_rgba(78,201,224,0.08)] placeholder:text-faint focus:border-accent focus:shadow-[0_0_0_3px_rgba(78,201,224,0.18)] focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={building || value.trim().length === 0}
+          aria-busy={building}
+          className={`shrink-0 rounded-md bg-accent px-5 py-2.5 text-[14px] font-semibold text-accent-contrast ${
+            building ? "breathe cursor-progress" : "hover:opacity-90 disabled:opacity-40"
+          }`}
+        >
+          {building ? "Building…" : "Build →"}
+        </button>
+      </form>
+      {building ? null : (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+          <span className="text-faint">Try</span>
+          {EXAMPLES.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => onChange(example)}
+              className="text-dim underline decoration-line-strong underline-offset-4 hover:text-accent hover:decoration-accent"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
