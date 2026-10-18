@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html, Line, RoundedBox } from "@react-three/drei";
+import { Billboard, Line, RoundedBox, Text } from "@react-three/drei";
 import type { Group } from "three";
 
 import type { PCBBlock } from "@/lib/blocks";
@@ -122,23 +122,12 @@ function BlockTile({ block, index }: { block: PCBBlock; index: number }) {
         <meshStandardMaterial color={COLORS.substrate} roughness={0.66} metalness={0.1} />
       </RoundedBox>
       <Line points={outline} color={color} lineWidth={block.failing ? 3 : 2.2} />
-      <Html
-        // Front edge, toward the camera: clear of the part labels floating above.
-        position={[x, BOARD_TOP + 0.05, -y + h / 2 + 0.28]}
-        center
-        distanceFactor={13}
-        zIndexRange={[30, 0]}
-        style={{ pointerEvents: "none" }}
-      >
-        <div
-          className="flex items-center gap-1.5 whitespace-nowrap rounded-sm border bg-[#222733]/90 px-2 py-1 font-mono text-[11px] leading-none text-white/90"
-          style={{ borderColor: color }}
-        >
-          <span style={{ color }}>{block.failing ? "✕" : "✓"}</span>
-          <span className="text-white/60">{index + 1}</span>
-          <span>{block.title}</span>
-        </div>
-      </Html>
+      {/* Front edge, toward the camera: clear of the part labels floating above. */}
+      <Billboard position={[x, BOARD_TOP + 0.2, -y + h / 2 + 0.28]}>
+        <Text fontSize={0.22} color={color} outlineWidth={0.03} outlineColor="#222733">
+          {`${index + 1}  ${block.title}${block.failing ? "  (failing)" : ""}`}
+        </Text>
+      </Billboard>
     </group>
   );
 }

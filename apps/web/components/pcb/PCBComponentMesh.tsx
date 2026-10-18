@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Html } from "@react-three/drei";
+import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import type { Mesh, MeshStandardMaterial } from "three";
 
@@ -138,55 +138,46 @@ export function PCBComponentMesh({
         />
       </mesh>
 
-      {/* Always mounted and only hidden: mounting <Html> on hover creates a React root mid-render. */}
-      <Html
-          position={[0, restY + depth / 2 + 0.46, 0]}
-          center
-          distanceFactor={13}
-          zIndexRange={[10, 0]}
-          style={{ pointerEvents: "none", visibility: showLabel ? "visible" : "hidden" }}
+      {/* Labels are WebGL text, not <Html>: each <Html> is its own React root, and unmounting one mid-render
+          (a snapshot swapping parts) throws in dev. */}
+      <Billboard position={[0, restY + depth / 2 + 0.46, 0]} visible={showLabel}>
+        {/* Reference designator carries the weight; the part name is
+            supporting text, as on a real assembly drawing. */}
+        <Text
+          fontSize={0.32}
+          anchorY="bottom"
+          color={status === "error" ? "#ff6b6b" : status === "repairing" ? "#ffc154" : "#ffffff"}
+          outlineWidth={0.02}
+          outlineColor="#11141a"
         >
-          <div className="whitespace-nowrap text-center font-mono leading-none">
-            {/* Reference designator carries the weight; the part name is
-                supporting text, as on a real assembly drawing. */}
-            <div
-              className={`text-[13px] font-semibold tracking-tight ${
-                status === "error"
-                  ? "text-[#ff6b6b]"
-                  : status === "repairing"
-                    ? "text-[#ffc154]"
-                    : "text-white/90"
-              }`}
-            >
-              {component.label}
-            </div>
-            <div className="mt-[3px] text-[8px] uppercase tracking-[0.16em] text-white/75">
-              {component.shortName ?? component.part ?? component.type}
-            </div>
-          </div>
-        </Html>
+          {component.label}
+        </Text>
+        <Text
+          position={[0, -0.06, 0]}
+          fontSize={0.15}
+          anchorY="top"
+          letterSpacing={0.12}
+          color="#d0d4dc"
+          outlineWidth={0.015}
+          outlineColor="#11141a"
+        >
+          {(component.shortName ?? component.part ?? component.type).toUpperCase()}
+        </Text>
+      </Billboard>
 
       {/* Fault annotation, anchored to the part it is about. This is the link
           between the critic's sentence and the object on the board. */}
       {annotation ? (
-        <Html
-          position={[0, restY + depth / 2 + 1.02, 0]}
-          center
-          distanceFactor={13}
-          zIndexRange={[20, 0]}
-          style={{ pointerEvents: "none" }}
-        >
-          <div
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-sm border px-2 py-1 font-mono text-[10px] backdrop-blur-sm ${
-              status === "error"
-                ? "border-[#ff4d4d]/50 bg-[#2a0f0f]/85 text-[#ff8a8a]"
-                : "border-[#ffb020]/50 bg-[#2a1e08]/85 text-[#ffc154]"
-            }`}
+        <Billboard position={[0, restY + depth / 2 + 1.02, 0]}>
+          <Text
+            fontSize={0.2}
+            color={status === "error" ? "#ff8a8a" : "#ffc154"}
+            outlineWidth={0.03}
+            outlineColor={status === "error" ? "#2a0f0f" : "#2a1e08"}
           >
-            <span aria-hidden>{status === "error" ? "⚠" : "↻"}</span>
-            <span>{annotation}</span>
-          </div>
-        </Html>
+            {annotation}
+          </Text>
+        </Billboard>
       ) : null}
     </group>
   );
